@@ -1,0 +1,79 @@
+  specification {
+    element actor
+    element system
+    element component
+    element note {
+      style {
+        color muted
+      }
+    }
+
+    relationship manual {
+      technology 'Manual'
+      line dashed
+    }
+  }
+
+  model {
+    versionNote = note 'v0.1D (Draft)' 'Diagram revision 0.1 — DRAFT. Subject to change; not yet approved.'
+
+    Users = actor 'Users' 'Users of the RAM system across various user groups' {
+      TribunalUsers = actor 'Tribunal Users' 'Users from Tribunals' {
+        UserTypeA = actor 'User Type A'
+        UserTypeB = actor 'User Type B'
+      }
+      CourtUsers = actor 'Court Users' 'Users from Courts responsible for managing sittings/bookings'
+      RsuUsers = actor 'RSU Users' 'Users from RSU teams responsible for managing sittings/bookings'
+      FinanceUsers = actor 'Finance Users' 'Users from Finance teams responsible for extracting payment data and uploading to payment system'
+    }
+
+    johSource = system 'Judicial Office Holder Source System' 'External system providing data about judicial office holders (JOHs) and their absences'
+
+    paymentSystem = system 'Payment System' 'External system responsible for processing payments to various JOHs across jurisdictions'
+
+    RAMSystem = system 'RAM' 'Resource Allocation Manager' {
+      component JOHDataScheduler "JOH Data Scheduler" "Responsible for fetching data from JOH source system and persisting raw data to the database"
+      component JOHRawStore "JOH Raw Payload Store" "The raw datastore"
+      component JOHDataReader "JOH Data Reader" "Reader responsible for reading raw data and publishing personnel and absence events"
+      component EventBus "Event Bus" "Event bus responsible for delivering events to appropriate listeners"
+      component JOHPersonnelDataListener "JOH Personnel Data Listener" "Listener responsible for listening to JOH personnel events and updating the database accordingly"
+      component AbsenceListener "Absence Listener" "Listener responsible for listening to absence events and triggering the appropriate workflow corresponding to the absence e.g. vacancy creation"
+      component RamDatabase "RAM Database" "Persistent storage for RAM data"
+      component SittingManagementAPI "Sitting Management API" "API responsible for managing sittings data"
+      component AbsenceManagementAPI "Absence Management API" "API responsible for managing absence workflows, including creating vacancies in response to absences so they can be filled by another JOH"
+      component RamUI "Ram User Interface" "User interface for RAM used by various users to manage sittings and view data"
+    }
+
+    Users.TribunalUsers -> RAMSystem.RamUI 'uses'
+    Users.CourtUsers -> RAMSystem.RamUI 'uses'
+    Users.RsuUsers -> RAMSystem.RamUI 'uses'
+    Users.FinanceUsers -> RAMSystem.RamUI 'extracts payment data'
+    RAMSystem.JOHDataScheduler -> johSource 'fetches JOH data via API'
+    RAMSystem.JOHDataScheduler -> RAMSystem.JOHRawStore 'persists raw JSON payload'
+    RAMSystem.JOHDataReader -> RAMSystem.JOHRawStore 'reads persisted JSON'
+    RAMSystem.JOHDataReader -> RAMSystem.EventBus 'publishes JOH personnel events'
+    RAMSystem.JOHDataReader -> RAMSystem.EventBus 'publishes absence events'
+    RAMSystem.EventBus -> RAMSystem.JOHPersonnelDataListener 'delivers JOH personnel events'
+    RAMSystem.EventBus -> RAMSystem.AbsenceListener 'delivers absence events'
+    RAMSystem.JOHPersonnelDataListener -> RAMSystem.RamDatabase 'persists JOH personnel data'
+    RAMSystem.AbsenceListener -> RAMSystem.AbsenceManagementAPI 'triggers absence workflow (creates vacancy)'
+    RAMSystem.AbsenceManagementAPI -> RAMSystem.RamDatabase 'persists absences and creates vacancies'
+    RAMSystem.RamUI -> RAMSystem.SittingManagementAPI 'adds/updates sittings'
+    RAMSystem.SittingManagementAPI -> RAMSystem.RamDatabase 'persists sittings'
+
+    RAMSystem -[manual]-> paymentSystem 'data extract (Phase 1: manually uploaded by users)'
+    Users.FinanceUsers -[manual]-> paymentSystem 'uploads extracted payment data (Phase 1: manual)'
+  }
+
+  views {
+    view index {
+      title 'System Context — v0.1D (Draft)'
+      include *
+    }
+
+    view ramContainers of RAMSystem {
+      title 'RAM - Containers — v0.1D (Draft)'
+      include *
+      include versionNote
+    }
+  }
