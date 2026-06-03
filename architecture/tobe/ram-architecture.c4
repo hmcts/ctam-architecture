@@ -7,6 +7,12 @@
         color muted
       }
     }
+    element capability {
+      notation 'Business Capability'
+      style {
+        color indigo
+      }
+    }
 
     relationship manual {
       technology 'Manual'
@@ -18,47 +24,57 @@
     versionNote = note 'v0.1D (Draft)' 'Diagram revision 0.1 — DRAFT. Subject to change; not yet approved.'
 
     Users = actor 'Users' 'Users of the RAM system across various user groups' {
-      TribunalUsers = actor 'Tribunal Users' 'Users from Tribunals' {
+      Tribunals = actor 'Tribunals' 'Tribunals jurisdiction' {
         UserTypeA = actor 'User Type A'
         UserTypeB = actor 'User Type B'
       }
-      CourtUsers = actor 'Court Users' 'Users from Courts responsible for managing sittings/bookings'
-      RsuUsers = actor 'RSU Users' 'Users from RSU teams responsible for managing sittings/bookings'
-      FinanceUsers = actor 'Finance Users' 'Users from Finance teams responsible for extracting payment data and uploading to payment system'
+      Courts = actor 'Courts' 'Courts jurisdiction' {
+        CourtUsers = actor 'Court Users' 'Users from Courts responsible for managing sittings/bookings'
+        RsuUsers = actor 'RSU Users' 'Users from RSU teams responsible for managing sittings/bookings'
+      }
+      Magistrates = actor 'Magistrates' 'Magistrates jurisdiction — user types and integrations TBD'
+      FinanceUsers = actor 'Finance Users' 'Cross-cutting cohort responsible for extracting payment data and uploading to payment system'
     }
 
-    johSource = system 'Judicial Office Holder Source System' 'External system providing data about judicial office holders (JOHs) and their absences'
+    johSource = system 'Judicial Office Holder Source System' 'External system providing data about judicial office holders (JOHs) personnel information'
 
     paymentSystem = system 'Payment System' 'External system responsible for processing payments to various JOHs across jurisdictions'
 
     RAMSystem = system 'RAM' 'Resource Allocation Manager' {
       component JOHDataScheduler "JOH Data Scheduler" "Responsible for fetching data from JOH source system and persisting raw data to the database"
       component JOHRawStore "JOH Raw Payload Store" "The raw datastore"
-      component JOHDataReader "JOH Data Reader" "Reader responsible for reading raw data and publishing personnel and absence events"
+      component JOHDataReader "JOH Data Reader" "Reader responsible for reading raw data and publishing personnel events"
       component EventBus "Event Bus" "Event bus responsible for delivering events to appropriate listeners"
       component JOHPersonnelDataListener "JOH Personnel Data Listener" "Listener responsible for listening to JOH personnel events and updating the database accordingly"
-      component AbsenceListener "Absence Listener" "Listener responsible for listening to absence events and triggering the appropriate workflow corresponding to the absence e.g. vacancy creation"
       component RamDatabase "RAM Database" "Persistent storage for RAM data"
       component SittingManagementAPI "Sitting Management API" "API responsible for managing sittings data"
       component AbsenceManagementAPI "Absence Management API" "API responsible for managing absence workflows, including creating vacancies in response to absences so they can be filled by another JOH"
-      component RamUI "Ram User Interface" "User interface for RAM used by various users to manage sittings and view data"
+      component JudgeManagementAPI "Judge Management API" "API responsible for managing judge (JOH) information and persisting it to the database"
+      component AuthorisationManagementAPI "Authorisation Management API" "Resolves the logged-in user's jurisdiction(s) (Courts / Tribunals / Magistrates) and user type within each jurisdiction (e.g. Court User vs RSU User within Courts). The returned authorisation context drives which locations, judge types, and other lookups are visible to the user in the UI."
+      component RamUI "Ram User Interface" "User interface for RAM used by various users to manage sittings and view data" {
+        capability AbsenceManagement "Absence Management" "Capability for managing JOH absences and the resulting vacancy workflow"
+        capability WorkingPatternManagement "Working Pattern Management" "Capability for managing JOH working patterns"
+        capability VacancyManagement "Vacancy Management" "Capability for managing vacancies arising from absences"
+      }
     }
 
-    Users.TribunalUsers -> RAMSystem.RamUI 'uses'
-    Users.CourtUsers -> RAMSystem.RamUI 'uses'
-    Users.RsuUsers -> RAMSystem.RamUI 'uses'
+    Users.Tribunals -> RAMSystem.RamUI 'uses'
+    Users.Courts.CourtUsers -> RAMSystem.RamUI 'uses'
+    Users.Courts.RsuUsers -> RAMSystem.RamUI 'uses'
     Users.FinanceUsers -> RAMSystem.RamUI 'extracts payment data'
     RAMSystem.JOHDataScheduler -> johSource 'fetches JOH data via API'
     RAMSystem.JOHDataScheduler -> RAMSystem.JOHRawStore 'persists raw JSON payload'
     RAMSystem.JOHDataReader -> RAMSystem.JOHRawStore 'reads persisted JSON'
     RAMSystem.JOHDataReader -> RAMSystem.EventBus 'publishes JOH personnel events'
-    RAMSystem.JOHDataReader -> RAMSystem.EventBus 'publishes absence events'
     RAMSystem.EventBus -> RAMSystem.JOHPersonnelDataListener 'delivers JOH personnel events'
-    RAMSystem.EventBus -> RAMSystem.AbsenceListener 'delivers absence events'
-    RAMSystem.JOHPersonnelDataListener -> RAMSystem.RamDatabase 'persists JOH personnel data'
-    RAMSystem.AbsenceListener -> RAMSystem.AbsenceManagementAPI 'triggers absence workflow (creates vacancy)'
+    RAMSystem.JOHPersonnelDataListener -> RAMSystem.JudgeManagementAPI 'persists judge information'
+    RAMSystem.JudgeManagementAPI -> RAMSystem.RamDatabase 'persists judge information'
     RAMSystem.AbsenceManagementAPI -> RAMSystem.RamDatabase 'persists absences and creates vacancies'
+    RAMSystem.RamUI -> RAMSystem.AbsenceManagementAPI 'manages absences'
     RAMSystem.RamUI -> RAMSystem.SittingManagementAPI 'adds/updates sittings'
+    RAMSystem.RamUI -> RAMSystem.JudgeManagementAPI 'reads judge information'
+    RAMSystem.RamUI -> RAMSystem.AuthorisationManagementAPI 'loads user authorisations and jurisdiction at login'
+    RAMSystem.AuthorisationManagementAPI -> RAMSystem.RamDatabase 'reads authorisation and jurisdiction data'
     RAMSystem.SittingManagementAPI -> RAMSystem.RamDatabase 'persists sittings'
 
     RAMSystem -[manual]-> paymentSystem 'data extract (Phase 1: manually uploaded by users)'
@@ -73,6 +89,12 @@
 
     view ramContainers of RAMSystem {
       title 'RAM - Containers — v0.1D (Draft)'
+      include *
+      include versionNote
+    }
+
+    view capabilityMap of RAMSystem.RamUI {
+      title 'RamUI Capabilities — v0.1D (Draft)'
       include *
       include versionNote
     }

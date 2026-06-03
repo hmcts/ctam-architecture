@@ -2,6 +2,8 @@
 
 Architectural artefacts for the **RAM (Resource Allocation Manager)** project.
 
+> **Work in Progress** — these artefacts are evolving and not yet ratified. Please consult the author before using any of them for consumption or downstream decisions.
+
 ## Delivery
 
 RAM will be delivered in stages. The initial stage focuses on Tribunals, with requirements considered in the following order:
