@@ -1,0 +1,1871 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>JO (eLinks) Integration — RAM Schema &amp; Source Mapping</title>
+  <style>
+
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+  <style type="text/css">
+body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.5; color: #172B4D; max-width: 1100px; margin: 2rem auto; padding: 0 1.5rem; }
+h1, h2, h3, h4 { color: #0747A6; }
+h1 { border-bottom: 2px solid #DFE1E6; padding-bottom: .35rem; }
+h2 { border-bottom: 1px solid #DFE1E6; padding-bottom: .25rem; margin-top: 2rem; }
+table { border-collapse: collapse; margin: 1rem 0; width: 100%; }
+th, td { border: 1px solid #DFE1E6; padding: 6px 10px; text-align: left; vertical-align: top; }
+th { background: #F4F5F7; font-weight: 600; }
+code { background: #F4F5F7; padding: 1px 4px; border-radius: 3px; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 0.9em; }
+pre { background: #F4F5F7; padding: .75rem 1rem; border-radius: 3px; overflow-x: auto; }
+pre code { background: transparent; padding: 0; }
+hr { border: none; border-top: 1px solid #DFE1E6; margin: 2rem 0; }
+img { max-width: 100%; height: auto; }
+blockquote { border-left: 4px solid #DFE1E6; margin: 1rem 0; padding: .25rem 1rem; color: #5E6C84; }
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">JO (eLinks) Integration — RAM Schema &amp; Source
+Mapping</h1>
+</header>
+<h1 id="jo-elinks-integration-ram-schema-source-mapping">JO (eLinks)
+Integration — RAM Schema &amp; Source Mapping</h1>
+<p>This document specifies the <strong>RAM tables</strong> that
+replicate the <strong>eLinks (Judicial Office)</strong> dataset, and the
+<strong>column-level mapping</strong> from the source API to RAM.</p>
+<ul>
+<li>Source: eLinks (a.k.a. JHR — Judicial HR) REST API, Data Dictionary
+v2.0 (2025-07-02).</li>
+<li>Source PDFs: <code>integrations/jo/eLinks Data Model_*.pdf</code>,
+<code>integrations/jo/eLinks Data Dictionary_*.pdf</code>.</li>
+<li>ER diagram: see the companion Confluence page <strong>JO (eLinks)
+Integration — RAM ER Diagram</strong>.</li>
+</ul>
+<hr />
+<h2 id="design-decisions">1. Design decisions</h2>
+<h3 id="naming">1.1 Naming</h3>
+<ul>
+<li>Every replicated table uses the <code>jo_</code> prefix.</li>
+<li>Table names follow the source’s endpoint/entity names, with
+<strong>one disambiguation</strong>:
+<ul>
+<li>The source has both a transactional <code>judiciary_roles[]</code>
+array (nested in <code>/people</code>) and a reference endpoint
+<code>/reference_data/judiciary_roles</code>. RAM splits these as:
+<ul>
+<li><code>jo_judiciary_role_assignments</code> — the transactional
+assignment of a judiciary role to a person.</li>
+<li><code>jo_judiciary_roles</code> — the reference list of role
+names.</li>
+</ul></li>
+</ul></li>
+<li>Column names follow the source’s <code>snake_case</code> attribute
+names verbatim, except where a source attribute is documented as a
+deprecated alias (see §1.3).</li>
+</ul>
+<h3 id="joh-lifecycle-people-leavers-deleted">1.2 JOH lifecycle
+(<code>/people</code>, <code>/leavers</code>,
+<code>/deleted</code>)</h3>
+<p>The source exposes three endpoints that all describe the <strong>same
+underlying person</strong> (<code>judicial_office_holders</code> in
+JHR), filtered by lifecycle state. RAM models this as a <strong>single
+<code>jo_people</code> table</strong> keyed by
+<code>personal_code</code> (the only stable, never-reused identifier)
+with a <code>status</code> discriminator:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Endpoint that fed the row</th>
+<th><code>jo_people.status</code></th>
+<th>Rule on receipt (per source “Actions to be taken”)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/people</code> (Current Office Holder)</td>
+<td><code>active</code></td>
+<td>Upsert by <code>personal_code</code>; full attributes
+populated.</td>
+</tr>
+<tr>
+<td><code>/leavers</code> (Leaver)</td>
+<td><code>leaver</code></td>
+<td>Upsert by <code>personal_code</code>; set <code>left_on</code>;
+<strong>null out all PII</strong> (title, names, email, work_phone,
+gender, disability, etc.) — keep only <code>personal_code</code>,
+<code>status</code>, <code>left_on</code>.</td>
+</tr>
+<tr>
+<td><code>/deleted</code> (Deleted)</td>
+<td><code>deleted</code></td>
+<td>Upsert by <code>personal_code</code>; set <code>deleted_on</code>;
+null out <strong>everything</strong> except <code>personal_code</code>,
+<code>status</code>, <code>deleted_on</code>. The source instruction is
+to delete the account; we soft-delete so that downstream RAM consumers
+can detect tombstones.</td>
+</tr>
+</tbody>
+</table>
+<p>Once a row is <code>deleted</code> it never becomes anything else
+(<code>personal_code</code> is not reused).</p>
+<h3 id="deprecated-source-attributes-excluded">1.3 Deprecated source
+attributes — excluded</h3>
+<p>The following are present in the source dictionary but flagged
+DEPRECATED, so they are <strong>not</strong> replicated into RAM:</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Excluded</th>
+<th>Use instead</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>per_id</code> (integer alias of
+<code>personal_code</code>)</td>
+<td><code>personal_code</code></td>
+</tr>
+<tr>
+<td><code>sex</code></td>
+<td><code>gender</code> + <code>gender_id</code></td>
+</tr>
+<tr>
+<td>The old flat <code>authorisations[]</code> entity</td>
+<td><code>jo_authorisations_current</code> and
+<code>jo_authorisations_with_dates</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="sync-refresh-metadata-separate-side-table">1.4 Sync / refresh
+metadata — separate side table</h3>
+<p>Refresh status is <strong>not</strong> stored on functional tables. A
+single <code>jo_sync_status</code> table keyed by source endpoint tracks
+the cursor for incremental refresh. Source-provided
+<code>created_at</code>/<code>updated_at</code> timestamps
+<strong>are</strong> kept on tables that expose them, because they
+describe the source row (and are needed for the
+<code>updated_since</code> cursor on <code>/people</code>).</p>
+<h3 id="foreign-key-strategy">1.5 Foreign-key strategy</h3>
+<ul>
+<li>Reference table PKs use the source integer <code>id</code> (= JHR
+<code>integration_id</code>), which the source guarantees stable across
+JHR releases and across Staging/Production.</li>
+<li>Transactional table PKs use the source-assigned id
+(<code>appointment_id</code>, <code>judiciary_role_id</code>,
+<code>authorisation_id</code>) — also guaranteed unique by JHR.</li>
+<li><code>jo_people.personal_code</code> is a <code>VARCHAR</code> (it
+can contain alphanumerics like <code>&quot;A3447&quot;</code>).</li>
+<li>Denormalised name columns
+(e.g. <code>jo_appointments.role_name</code>,
+<code>jo_appointments.contract_type</code>) are <strong>preserved as the
+source provides them</strong> so RAM consumers can read without joining.
+The integer FK column is the authoritative link.</li>
+</ul>
+<h3 id="special-case-authorisations_with_dates.jurisdiction_id">1.6
+Special case —
+<code>authorisations_with_dates.jurisdiction_id</code></h3>
+<p>The source documents an edge case: when an authorisation’s
+<code>jurisdiction == &quot;Courts&quot;</code>, the source returns the
+<strong>ticket-category id</strong> in the <code>jurisdiction_id</code>
+attribute (not a real jurisdiction id). RAM faithfully replicates this —
+<code>jo_authorisations_with_dates.jurisdiction_id</code> is FK to
+<code>jo_jurisdictions</code> <strong>unless</strong>
+<code>jurisdiction = &#39;Courts&#39;</code>, in which case it is FK to
+<code>jo_ticket_categories</code>. The same quirk applies to the string
+<code>jurisdiction</code> column (it carries the ticket category name
+when source jurisdiction is <code>Courts</code>). This is the source’s
+behaviour, not a RAM transformation.</p>
+<hr />
+<h2 id="table-list">2. Table list</h2>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>#</th>
+<th>RAM table</th>
+<th>Category</th>
+<th>Source endpoint / path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>jo_people</code></td>
+<td>Transactional</td>
+<td><code>/people</code>, <code>/leavers</code>, <code>/deleted</code>
+(merged)</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>jo_appointments</code></td>
+<td>Transactional</td>
+<td><code>/people</code> → <code>appointments[]</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>jo_judiciary_role_assignments</code></td>
+<td>Transactional</td>
+<td><code>/people</code> → <code>judiciary_roles[]</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>jo_authorisations_current</code></td>
+<td>Transactional</td>
+<td><code>/people</code> → <code>authorisations_current[]</code>
+(flattened)</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>jo_authorisations_with_dates</code></td>
+<td>Transactional</td>
+<td><code>/people</code> → <code>authorisations_with_dates[]</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>jo_appointment_titles</code></td>
+<td>Reference</td>
+<td><code>/reference_data/appointment_titles</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>jo_base_locations</code></td>
+<td>Reference</td>
+<td><code>/reference_data/base_locations</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>jo_contract_types</code></td>
+<td>Reference</td>
+<td><code>/reference_data/contract_types</code></td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>jo_genders</code></td>
+<td>Reference</td>
+<td><code>/reference_data/genders</code></td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>jo_judiciary_roles</code></td>
+<td>Reference</td>
+<td><code>/reference_data/judiciary_roles</code></td>
+</tr>
+<tr>
+<td>11</td>
+<td><code>jo_jurisdictions</code></td>
+<td>Reference</td>
+<td><code>/reference_data/jurisdictions</code></td>
+</tr>
+<tr>
+<td>12</td>
+<td><code>jo_locations</code></td>
+<td>Reference</td>
+<td><code>/reference_data/locations</code></td>
+</tr>
+<tr>
+<td>13</td>
+<td><code>jo_location_types</code></td>
+<td>Reference</td>
+<td><code>/reference_data/location_types</code></td>
+</tr>
+<tr>
+<td>14</td>
+<td><code>jo_tickets</code></td>
+<td>Reference</td>
+<td><code>/reference_data/tickets</code></td>
+</tr>
+<tr>
+<td>15</td>
+<td><code>jo_ticket_categories</code></td>
+<td>Reference</td>
+<td><code>/reference_data/ticket_categories</code></td>
+</tr>
+<tr>
+<td>16</td>
+<td><code>jo_ticket_category_types</code></td>
+<td>Reference</td>
+<td><code>/reference_data/ticket_category_types</code></td>
+</tr>
+<tr>
+<td>17</td>
+<td><code>jo_sync_status</code></td>
+<td>RAM-internal</td>
+<td>(none — populated by sync job)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="column-mappings">3. Column mappings</h2>
+<p>For every mapping table below: - <strong>RAM column</strong> — column
+name in the RAM database. - <strong>Type</strong> — proposed RAM column
+type (Postgres-flavoured; adjust to RAM’s chosen DBMS). - <strong>PK /
+FK</strong> — primary key / foreign key designation. - <strong>Source
+attribute</strong> — the attribute name in the source API response (or
+the JHR table.column where the dictionary makes it explicit). -
+<strong>Notes / example</strong> — transformation, nullability,
+deprecation, example value.</p>
+<h3 id="jo_people">3.1 <code>jo_people</code></h3>
+<blockquote>
+<p>Replicated from <code>/people</code>, <code>/leavers</code>,
+<code>/deleted</code>. One row per physical JOH, keyed by
+<code>personal_code</code>. Lifecycle is encoded in
+<code>status</code>.</p>
+</blockquote>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>RAM column</th>
+<th>Type</th>
+<th>Key</th>
+<th>Source attribute (per state)</th>
+<th>Notes / example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>personal_code</code></td>
+<td>VARCHAR(32)</td>
+<td>PK</td>
+<td><code>personal_code</code> (all 3 endpoints)</td>
+<td>The only guaranteed-unique, never-reused identifier.
+<code>&quot;49728416&quot;</code>, <code>&quot;A3447&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>VARCHAR(16)</td>
+<td>—</td>
+<td><em>derived</em></td>
+<td><code>&#39;active&#39;</code> when sourced from <code>/people</code>,
+<code>&#39;leaver&#39;</code> from <code>/leavers</code>, <code>&#39;deleted&#39;</code>
+from <code>/deleted</code>.</td>
+</tr>
+<tr>
+<td><code>ad_object_id</code></td>
+<td>VARCHAR(64)</td>
+<td>—</td>
+<td><code>id</code> (Master:eJ Active Directory Object Id)</td>
+<td>eJ AD object id. Active/Leaver only. <strong>Not</strong> a unique
+key — eJ may reassign it. Null for <code>deleted</code>.</td>
+</tr>
+<tr>
+<td><code>title</code></td>
+<td>VARCHAR(64)</td>
+<td>—</td>
+<td><code>title</code> (JHR:judicial_office_holders.judicial_title |
+.civil_title_id)</td>
+<td>Active only. <code>&quot;His Honour Judge&quot;</code>,
+<code>&quot;Mrs&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>known_as</code></td>
+<td>VARCHAR(128)</td>
+<td>—</td>
+<td><code>known_as</code> (JHR:judicial_office_holders.known_as)</td>
+<td>Active only. Nickname/short/middle name; otherwise first name.</td>
+</tr>
+<tr>
+<td><code>surname</code></td>
+<td>VARCHAR(128)</td>
+<td>—</td>
+<td><code>surname</code> (JHR:judicial_office_holders.last_name)</td>
+<td>Active only.</td>
+</tr>
+<tr>
+<td><code>fullname</code></td>
+<td>VARCHAR(256)</td>
+<td>—</td>
+<td><code>fullname</code> (JHR:calculated)</td>
+<td>Active only. Includes postnominals.</td>
+</tr>
+<tr>
+<td><code>initials</code></td>
+<td>VARCHAR(16)</td>
+<td>—</td>
+<td><code>initials</code> (JHR:calculated)</td>
+<td>Active only.</td>
+</tr>
+<tr>
+<td><code>post_nominals</code></td>
+<td>VARCHAR(64)</td>
+<td>—</td>
+<td><code>post_nominals</code>
+(JHR:judicial_office_holders.post_nominals)</td>
+<td>Active only. e.g. <code>&quot;JP OBE&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>email</code></td>
+<td>VARCHAR(256)</td>
+<td>—</td>
+<td><code>email</code> (Master:eJ | JHR:ejudiciary_email_address)</td>
+<td>Active only. <strong>Not</strong> unique — eJ may change/reuse.</td>
+</tr>
+<tr>
+<td><code>email_personal</code></td>
+<td>VARCHAR(256)</td>
+<td>—</td>
+<td><code>email_personal</code> (JHR:personal_email_address)</td>
+<td>Active only. May be null (partial coverage as of source doc).</td>
+</tr>
+<tr>
+<td><code>gender</code></td>
+<td>VARCHAR(32)</td>
+<td>—</td>
+<td><code>gender</code> (JHR:equal_opportunities_records.gender_id)</td>
+<td>Active only. Denormalised name.</td>
+</tr>
+<tr>
+<td><code>gender_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_genders.id</code></td>
+<td><code>gender_id</code>
+(JHR:equal_opportunities_records.gender_id)</td>
+<td>Active only.</td>
+</tr>
+<tr>
+<td><code>work_phone</code></td>
+<td>VARCHAR(32)</td>
+<td>—</td>
+<td><code>work_phone</code> (JHR:contact_methods.value)</td>
+<td>Active only. Picked from work phone/mobile in order.</td>
+</tr>
+<tr>
+<td><code>disability</code></td>
+<td>BOOLEAN</td>
+<td>—</td>
+<td><code>disability</code>
+(JHR:diversity_records.disability_answer_id)</td>
+<td>Active only.</td>
+</tr>
+<tr>
+<td><code>retirement_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>retirement_date</code>
+(JHR:judicial_office_holders.compulsory_retirement_date)</td>
+<td>Active only. Compulsory retirement date.</td>
+</tr>
+<tr>
+<td><code>leaving_on</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>leaving_on</code>
+(JHR:judicial_office_holders.leaving_on_date)</td>
+<td>Active only. Auto-set to latest
+<code>appointment.end_date</code>.</td>
+</tr>
+<tr>
+<td><code>left_on</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>left_on</code> (<code>/leavers</code> only)</td>
+<td>Leaver only. Date the JOH left.</td>
+</tr>
+<tr>
+<td><code>deleted_on</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>deleted_on</code> (<code>/deleted</code> only)</td>
+<td>Deleted only.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Excluded (deprecated in source):</strong>
+<code>per_id</code>, <code>sex</code>,
+<code>authorisations[]</code>.</p>
+<p><strong>Note</strong> the nested arrays (<code>appointments[]</code>,
+<code>judiciary_roles[]</code>, <code>authorisations_current[]</code>,
+<code>authorisations_with_dates[]</code>) are <strong>not</strong>
+columns on <code>jo_people</code> — they each land in their own table,
+linked back via <code>personal_code</code>.</p>
+<h3 id="jo_appointments">3.2 <code>jo_appointments</code></h3>
+<blockquote>
+<p>Replicated from <code>/people</code> → <code>appointments[]</code>.
+Each appointment describes an instance of the person being appointed to
+a role at a location, under a contract type.</p>
+</blockquote>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>RAM column</th>
+<th>Type</th>
+<th>Key</th>
+<th>Source attribute</th>
+<th>Notes / example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>appointment_id</code></td>
+<td>INT</td>
+<td>PK</td>
+<td><code>appointment_id</code> (JHR:appointment.id)</td>
+<td>Source-assigned, unique. <code>145094</code>.</td>
+</tr>
+<tr>
+<td><code>personal_code</code></td>
+<td>VARCHAR(32)</td>
+<td>FK → <code>jo_people.personal_code</code></td>
+<td>(parent in <code>/people</code> array)</td>
+<td>Link to parent JOH.</td>
+</tr>
+<tr>
+<td><code>role_name</code></td>
+<td>VARCHAR(128)</td>
+<td>—</td>
+<td><code>role_name</code>
+(JHR:appointment_histories.appointment_title_id)</td>
+<td>Denormalised role display name. <code>&quot;Circuit Judge&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>role_name_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_appointment_titles.id</code></td>
+<td><code>role_name_id</code>
+(JHR:appointment_histories.appointment_title_id)</td>
+<td>Stable FK.</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>VARCHAR(32)</td>
+<td>—</td>
+<td><code>type</code> (JHR:appointment_histories.location_id)</td>
+<td><code>&quot;Tribunal&quot;</code>, <code>&quot;Advisory Committee&quot;</code>,
+<code>&quot;LJA&quot;</code>, <code>&quot;Courts&quot;</code>, <code>&quot;Mags Court&quot;</code>,
+<code>&quot;Coroners&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>court_name</code></td>
+<td>VARCHAR(128)</td>
+<td>—</td>
+<td><code>court_name</code> (JHR:appointment_histories.location_id)</td>
+<td>Mapping depends on <code>type</code> — see source “Locations”
+technical note.</td>
+</tr>
+<tr>
+<td><code>court_type</code></td>
+<td>VARCHAR(128)</td>
+<td>—</td>
+<td><code>court_type</code> (JHR:appointment_histories.location_id)</td>
+<td>As above.</td>
+</tr>
+<tr>
+<td><code>circuit</code></td>
+<td>VARCHAR(128)</td>
+<td>—</td>
+<td><code>circuit</code> (JHR:appointment_histories.location_id)</td>
+<td>As above.</td>
+</tr>
+<tr>
+<td><code>bench</code></td>
+<td>VARCHAR(128)</td>
+<td>—</td>
+<td><code>bench</code> (JHR:appointment_histories.location_id)</td>
+<td>As above.</td>
+</tr>
+<tr>
+<td><code>advisory_committee_area</code></td>
+<td>VARCHAR(128)</td>
+<td>—</td>
+<td><code>advisory_committee_area</code>
+(JHR:appointment_histories.location_id)</td>
+<td>As above.</td>
+</tr>
+<tr>
+<td><code>location</code></td>
+<td>VARCHAR(128)</td>
+<td>—</td>
+<td><code>location</code> (JHR:appointment_histories.location_id)</td>
+<td>Region or national; mapping depends on <code>type</code>.</td>
+</tr>
+<tr>
+<td><code>base_location</code></td>
+<td>VARCHAR(256)</td>
+<td>—</td>
+<td><code>base_location</code>
+(JHR:appointment_histories.location_id)</td>
+<td>Denormalised name. <code>&quot;Reading Magistrates Court&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>base_location_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_base_locations.id</code></td>
+<td><code>base_location_id</code>
+(JHR:appointment_histories.location_id)</td>
+<td>Lowest level of the location hierarchy.</td>
+</tr>
+<tr>
+<td><code>is_principal</code></td>
+<td>BOOLEAN</td>
+<td>—</td>
+<td><code>is_principal</code> (JHR:appointmnet.primary)</td>
+<td>Exactly one principal Appointment per Current Office Holder.</td>
+</tr>
+<tr>
+<td><code>start_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>start_date</code> (JHR:appointment_histories.start_date)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>end_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>end_date</code> (JHR:appointment_histories.end_date)</td>
+<td>May be future-dated unless
+<code>include_previous_appointments=true</code> requested.</td>
+</tr>
+<tr>
+<td><code>contract_type</code></td>
+<td>VARCHAR(64)</td>
+<td>—</td>
+<td><code>contract_type</code>
+(JHR:appointment_histories.contract_type_id)</td>
+<td>Denormalised. <code>&quot;Fee-paid&quot;</code>, <code>&quot;Salaried&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>contract_type_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_contract_types.id</code></td>
+<td><code>contract_type_id</code>
+(JHR:appointment_histories.contract_type_id)</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="jo_judiciary_role_assignments">3.3
+<code>jo_judiciary_role_assignments</code></h3>
+<blockquote>
+<p>Replicated from <code>/people</code> →
+<code>judiciary_roles[]</code>. Records a JOH having been designated
+with a named judiciary role (applied to the person, not to an
+appointment).</p>
+</blockquote>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>RAM column</th>
+<th>Type</th>
+<th>Key</th>
+<th>Source attribute</th>
+<th>Notes / example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>judiciary_role_id</code></td>
+<td>INT</td>
+<td>PK</td>
+<td><code>judiciary_role_id</code> (JHR)</td>
+<td>Unique id of the assignment. <code>145094</code>.</td>
+</tr>
+<tr>
+<td><code>personal_code</code></td>
+<td>VARCHAR(32)</td>
+<td>FK → <code>jo_people.personal_code</code></td>
+<td>(parent in <code>/people</code> array)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>VARCHAR(128)</td>
+<td>—</td>
+<td><code>name</code> (JHR)</td>
+<td>Denormalised role name. <code>&quot;Bench Chair&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>judiciary_role_name_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_judiciary_roles.id</code></td>
+<td><code>judiciary_role_name_id</code> (JHR)</td>
+<td>FK to the reference role list.</td>
+</tr>
+<tr>
+<td><code>start_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>start_date</code> (JHR)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>end_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>end_date</code> (JHR)</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="jo_authorisations_current">3.4
+<code>jo_authorisations_current</code></h3>
+<blockquote>
+<p>Replicated from <code>/people</code> →
+<code>authorisations_current[]</code>. The source array nests
+<code>tickets[]</code> under each <code>{ jurisdiction, tickets }</code>
+entry; RAM <strong>flattens</strong> to one row per
+(<code>personal_code</code>, <code>jurisdiction</code>,
+<code>ticket_name</code>). The source already filters to currently-valid
+authorisations (start ≤ today and end ≥ today or null), so RAM does the
+same.</p>
+</blockquote>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>RAM column</th>
+<th>Type</th>
+<th>Key</th>
+<th>Source attribute</th>
+<th>Notes / example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>personal_code</code></td>
+<td>VARCHAR(32)</td>
+<td>PK, FK → <code>jo_people.personal_code</code></td>
+<td>(parent in <code>/people</code> array)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>jurisdiction</code></td>
+<td>VARCHAR(64)</td>
+<td>PK</td>
+<td><code>jurisdiction</code> (JHR)</td>
+<td><code>&quot;Tribunals&quot;</code>, <code>&quot;Civil&quot;</code>. When source
+jurisdiction is <code>Courts</code>, this carries the <strong>ticket
+category name</strong> instead.</td>
+</tr>
+<tr>
+<td><code>ticket_name</code></td>
+<td>VARCHAR(256)</td>
+<td>PK</td>
+<td><code>tickets[]</code> (JHR) — flattened</td>
+<td>One row per element of the array.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Note</strong> — this table is intentionally narrow because
+the source doesn’t expose dates/ids on this view. For dates and FKs use
+<code>jo_authorisations_with_dates</code>.</p>
+<h3 id="jo_authorisations_with_dates">3.5
+<code>jo_authorisations_with_dates</code></h3>
+<blockquote>
+<p>Replicated from <code>/people</code> →
+<code>authorisations_with_dates[]</code>. The detailed view of every
+ticket the person has been authorised on (current and historic).</p>
+</blockquote>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>RAM column</th>
+<th>Type</th>
+<th>Key</th>
+<th>Source attribute</th>
+<th>Notes / example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>authorisation_id</code></td>
+<td>INT</td>
+<td>PK</td>
+<td><code>authorisation_id</code> (JHR)</td>
+<td>Unique. <code>135337</code>.</td>
+</tr>
+<tr>
+<td><code>personal_code</code></td>
+<td>VARCHAR(32)</td>
+<td>FK → <code>jo_people.personal_code</code></td>
+<td>(parent in <code>/people</code> array)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>appointment_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_appointments.appointment_id</code></td>
+<td><code>appointment_id</code> (JHR)</td>
+<td>Nullable. Source guarantees population after August 2025; older rows
+may be null.</td>
+</tr>
+<tr>
+<td><code>jurisdiction</code></td>
+<td>VARCHAR(64)</td>
+<td>—</td>
+<td><code>jurisdiction</code> (JHR)</td>
+<td>When source jurisdiction is <code>Courts</code>, carries the
+<strong>ticket-category name</strong> instead (<code>&quot;Civil&quot;</code>,
+<code>&quot;Family&quot;</code>, <code>&quot;Tribunals&quot;</code>).</td>
+</tr>
+<tr>
+<td><code>jurisdiction_id</code></td>
+<td>INT</td>
+<td>FK (conditional)</td>
+<td><code>jurisdiction_id</code> (JHR)</td>
+<td>Normally FK → <code>jo_jurisdictions.id</code>. <strong>When
+<code>jurisdiction = &#39;Courts&#39;</code></strong> → FK →
+<code>jo_ticket_categories.id</code> (this is the source’s documented
+behaviour, not a RAM transformation).</td>
+</tr>
+<tr>
+<td><code>ticket</code></td>
+<td>VARCHAR(256)</td>
+<td>—</td>
+<td><code>ticket</code> (JHR)</td>
+<td>Denormalised ticket name.
+<code>&quot;03 - Disability Living Allowance&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>ticket_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_tickets.id</code></td>
+<td><code>ticket_id</code> (JHR)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>start_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>start_date</code> (JHR)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>end_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>end_date</code> (JHR)</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="jo_appointment_titles">3.6
+<code>jo_appointment_titles</code></h3>
+<blockquote>
+<p>Reference list of appointment role names. Referenced by
+<code>jo_appointments.role_name_id</code>.</p>
+</blockquote>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>RAM column</th>
+<th>Type</th>
+<th>Key</th>
+<th>Source attribute</th>
+<th>Notes / example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>INT</td>
+<td>PK</td>
+<td><code>id</code> (JHR:integration_id)</td>
+<td>Stable across JHR releases and Staging↔︎Production.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>VARCHAR(128)</td>
+<td>—</td>
+<td><code>name</code></td>
+<td><code>&quot;Magistrate&quot;</code>,
+<code>&quot;Deputy District Judge - Fee-paid&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>start_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>start_date</code></td>
+<td>Selectable-from date; null = unconstrained.</td>
+</tr>
+<tr>
+<td><code>end_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>end_date</code></td>
+<td>Selectable-to date; null = unconstrained.</td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>created_at</code></td>
+<td>Source row creation.</td>
+</tr>
+<tr>
+<td><code>updated_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>updated_at</code></td>
+<td>Source row update.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="jo_base_locations">3.7 <code>jo_base_locations</code></h3>
+<blockquote>
+<p>Reference list of locations to which an appointment can be attached.
+Referenced by <code>jo_appointments.base_location_id</code>.</p>
+</blockquote>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>RAM column</th>
+<th>Type</th>
+<th>Key</th>
+<th>Source attribute</th>
+<th>Notes / example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>INT</td>
+<td>PK</td>
+<td><code>id</code> (JHR:integration_id)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>VARCHAR(256)</td>
+<td>—</td>
+<td><code>name</code></td>
+<td><code>&quot;Manchester Civil Justice Centre&quot;</code>. Denormalised in
+<code>jo_appointments.base_location</code> EXCEPT for Tribunals.</td>
+</tr>
+<tr>
+<td><code>type_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_location_types.id</code></td>
+<td><code>type_id</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>parent_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_locations.id</code></td>
+<td><code>parent_id</code></td>
+<td>Parent in the location hierarchy.</td>
+</tr>
+<tr>
+<td><code>jurisdiction_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_jurisdictions.id</code> (hard-coded)</td>
+<td><code>jurisdiction_id</code></td>
+<td>Hard-coded enum: 1 Courts, 2 Tribunals, 3 Magistrates, 4
+Coroners.</td>
+</tr>
+<tr>
+<td><code>start_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>start_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>end_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>end_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>created_at</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>updated_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>updated_at</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="jo_contract_types">3.8 <code>jo_contract_types</code></h3>
+<blockquote>
+<p>Reference list of appointment contract types. Referenced by
+<code>jo_appointments.contract_type_id</code>.</p>
+</blockquote>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>RAM column</th>
+<th>Type</th>
+<th>Key</th>
+<th>Source attribute</th>
+<th>Notes / example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>INT</td>
+<td>PK</td>
+<td><code>id</code> (JHR:integration_id)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>VARCHAR(64)</td>
+<td>—</td>
+<td><code>name</code></td>
+<td><code>&quot;Salaried&quot;</code>, <code>&quot;Fee-paid&quot;</code>,
+<code>&quot;Voluntary&quot;</code>, <code>&quot;SPTW-50%&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>salaried</code></td>
+<td>BOOLEAN</td>
+<td>—</td>
+<td><code>salaried</code></td>
+<td>Whether this contract type is salaried.</td>
+</tr>
+<tr>
+<td><code>start_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>start_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>end_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>end_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>created_at</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>updated_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>updated_at</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="jo_genders">3.9 <code>jo_genders</code></h3>
+<blockquote>
+<p>Reference list of gender values. Referenced by
+<code>jo_people.gender_id</code>.</p>
+</blockquote>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>RAM column</th>
+<th>Type</th>
+<th>Key</th>
+<th>Source attribute</th>
+<th>Notes / example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>INT</td>
+<td>PK</td>
+<td><code>id</code> (JHR:integration_id)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>VARCHAR(32)</td>
+<td>—</td>
+<td><code>name</code></td>
+<td><code>&quot;Male&quot;</code>, <code>&quot;Female&quot;</code>, <code>&quot;Other&quot;</code>,
+<code>&quot;Prefer not to say&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>start_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>start_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>end_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>end_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>created_at</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>updated_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>updated_at</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="jo_judiciary_roles-reference-list">3.10
+<code>jo_judiciary_roles</code> (reference list)</h3>
+<blockquote>
+<p>Reference list of judiciary role names. Referenced by
+<code>jo_judiciary_role_assignments.judiciary_role_name_id</code>.
+<strong>Note</strong> — not to be confused with the transactional
+<code>jo_judiciary_role_assignments</code>.</p>
+</blockquote>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>RAM column</th>
+<th>Type</th>
+<th>Key</th>
+<th>Source attribute</th>
+<th>Notes / example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>INT</td>
+<td>PK</td>
+<td><code>id</code> (JHR:integration_id)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>VARCHAR(128)</td>
+<td>—</td>
+<td><code>name</code></td>
+<td><code>&quot;International Committee Member&quot;</code>,
+<code>&quot;Sentencing Council&quot;</code>, <code>&quot;Appraisal Judge&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>start_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>start_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>end_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>end_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>created_at</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>updated_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>updated_at</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="jo_jurisdictions">3.11 <code>jo_jurisdictions</code></h3>
+<blockquote>
+<p>Reference list of jurisdictions. Referenced by ticket-related and
+location-related tables.</p>
+</blockquote>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>RAM column</th>
+<th>Type</th>
+<th>Key</th>
+<th>Source attribute</th>
+<th>Notes / example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>INT</td>
+<td>PK</td>
+<td><code>id</code> (JHR:integration_id)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>VARCHAR(64)</td>
+<td>—</td>
+<td><code>name</code></td>
+<td><code>&quot;Courts&quot;</code>, <code>&quot;Tribunals&quot;</code>,
+<code>&quot;Magistrates&quot;</code>, <code>&quot;Coroners&quot;</code>,
+<code>&quot;Skills&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>start_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>start_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>end_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>end_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>created_at</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>updated_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>updated_at</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="jo_locations">3.12 <code>jo_locations</code></h3>
+<blockquote>
+<p>Reference list of <strong>all</strong> locations (the whole
+hierarchy). <code>jo_base_locations</code> is a subset of this
+(locations an appointment can attach to).</p>
+</blockquote>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>RAM column</th>
+<th>Type</th>
+<th>Key</th>
+<th>Source attribute</th>
+<th>Notes / example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>INT</td>
+<td>PK</td>
+<td><code>id</code> (JHR:integration_id)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>VARCHAR(256)</td>
+<td>—</td>
+<td><code>name</code></td>
+<td><code>&quot;Manchester Civil Justice Centre&quot;</code>,
+<code>&quot;Wiltshire LJA&quot;</code>, <code>&quot;Other Tribunal&quot;</code>,
+<code>&quot;National&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>type_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_location_types.id</code></td>
+<td><code>type_id</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>parent_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_locations.id</code> (self)</td>
+<td><code>parent_id</code></td>
+<td>Self-referencing hierarchy.</td>
+</tr>
+<tr>
+<td><code>jurisdiction_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_jurisdictions.id</code> (hard-coded)</td>
+<td><code>jurisdiction_id</code></td>
+<td>Hard-coded enum: 1 Courts, 2 Tribunals, 3 Magistrates, 4
+Coroners.</td>
+</tr>
+<tr>
+<td><code>start_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>start_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>end_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>end_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>created_at</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>updated_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>updated_at</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="jo_location_types">3.13 <code>jo_location_types</code></h3>
+<blockquote>
+<p>Reference list of location-hierarchy types. Referenced by
+<code>jo_locations.type_id</code> and
+<code>jo_base_locations.type_id</code>.</p>
+</blockquote>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>RAM column</th>
+<th>Type</th>
+<th>Key</th>
+<th>Source attribute</th>
+<th>Notes / example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>INT</td>
+<td>PK</td>
+<td><code>id</code> (JHR:integration_id)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>VARCHAR(64)</td>
+<td>—</td>
+<td><code>name</code></td>
+<td><code>&quot;Court&quot;</code>, <code>&quot;Area or Parent AC&quot;</code>,
+<code>&quot;Chamber&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>jurisdiction_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_jurisdictions.id</code> (hard-coded)</td>
+<td><code>jurisdiction_id</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>integration_code</code></td>
+<td>VARCHAR(64)</td>
+<td>—</td>
+<td><code>integration_code</code></td>
+<td><code>&quot;MAGS_AREA_OR_PARENT_AC&quot;</code>,
+<code>&quot;COURTS_COURT_NAME&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>start_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>start_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>end_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>end_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>created_at</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>updated_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>updated_at</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="jo_tickets">3.14 <code>jo_tickets</code></h3>
+<blockquote>
+<p>Reference list of ticket (authorisation competency) names. Referenced
+by <code>jo_authorisations_with_dates.ticket_id</code>.</p>
+</blockquote>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>RAM column</th>
+<th>Type</th>
+<th>Key</th>
+<th>Source attribute</th>
+<th>Notes / example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>INT</td>
+<td>PK</td>
+<td><code>id</code> (JHR:integration_id)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>VARCHAR(256)</td>
+<td>—</td>
+<td><code>name</code></td>
+<td><code>&quot;Welsh Language&quot;</code>, <code>&quot;Chancery&quot;</code>,
+<code>&quot;Attempted Murder&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>ticket_category_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_ticket_categories.id</code></td>
+<td><code>ticket_category_id</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>start_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>start_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>end_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>end_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>created_at</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>updated_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>updated_at</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="jo_ticket_categories">3.15
+<code>jo_ticket_categories</code></h3>
+<blockquote>
+<p>Reference list of ticket categories (hierarchy). Referenced by
+<code>jo_tickets.ticket_category_id</code> and by
+<code>jo_authorisations_with_dates.jurisdiction_id</code> when
+<code>jurisdiction = &#39;Courts&#39;</code>.</p>
+</blockquote>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>RAM column</th>
+<th>Type</th>
+<th>Key</th>
+<th>Source attribute</th>
+<th>Notes / example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>INT</td>
+<td>PK</td>
+<td><code>id</code> (JHR:integration_id)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>VARCHAR(256)</td>
+<td>—</td>
+<td><code>name</code></td>
+<td><code>&quot;Environment&quot;</code>,
+<code>&quot;Direct and Indirect Taxation&quot;</code>,
+<code>&quot;Appeals in Crown Court&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>type_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_ticket_category_types.id</code></td>
+<td><code>type_id</code></td>
+<td>Courts / Tribs / Skills etc.</td>
+</tr>
+<tr>
+<td><code>jurisdiction_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_jurisdictions.id</code> (hard-coded)</td>
+<td><code>jurisdiction_id</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>parent_category_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_ticket_categories.id</code> (self)</td>
+<td><code>parent_category_id</code></td>
+<td>Self-referencing hierarchy.</td>
+</tr>
+<tr>
+<td><code>start_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>start_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>end_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>end_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>created_at</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>updated_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>updated_at</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="jo_ticket_category_types">3.16
+<code>jo_ticket_category_types</code></h3>
+<blockquote>
+<p>Reference list of ticket-category types. Referenced by
+<code>jo_ticket_categories.type_id</code>.</p>
+</blockquote>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>RAM column</th>
+<th>Type</th>
+<th>Key</th>
+<th>Source attribute</th>
+<th>Notes / example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>INT</td>
+<td>PK</td>
+<td><code>id</code> (JHR:integration_id)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>VARCHAR(64)</td>
+<td>—</td>
+<td><code>name</code></td>
+<td><code>&quot;Court Type&quot;</code>, <code>&quot;Skills Category&quot;</code>,
+<code>&quot;Tribunal Name&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>jurisdiction_id</code></td>
+<td>INT</td>
+<td>FK → <code>jo_jurisdictions.id</code> (hard-coded)</td>
+<td><code>jurisdiction_id</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>integration_code</code></td>
+<td>VARCHAR(64)</td>
+<td>—</td>
+<td><code>integration_code</code></td>
+<td><code>&quot;COURTS_COURT_TYPE&quot;</code>, <code>&quot;SKILLS_CATEGORY&quot;</code>,
+<code>&quot;TRIBS_NAME&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>start_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>start_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>end_date</code></td>
+<td>DATE</td>
+<td>—</td>
+<td><code>end_date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>created_at</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>updated_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td><code>updated_at</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="jo_sync_status-ram-internal-no-source-mapping">3.17
+<code>jo_sync_status</code> (RAM-internal, no source mapping)</h3>
+<blockquote>
+<p>One row per source endpoint, maintained by the RAM ingestion job.
+Holds the cursor used for incremental refresh and the outcome of the
+last run.</p>
+</blockquote>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>RAM column</th>
+<th>Type</th>
+<th>Key</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>source_endpoint</code></td>
+<td>VARCHAR(128)</td>
+<td>PK</td>
+<td>e.g. <code>/people</code>, <code>/leavers</code>,
+<code>/deleted</code>, <code>/reference_data/tickets</code>.</td>
+</tr>
+<tr>
+<td><code>last_synced_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td>When the last sync run started.</td>
+</tr>
+<tr>
+<td><code>last_successful_sync_at</code></td>
+<td>TIMESTAMP</td>
+<td>—</td>
+<td>When the last successful sync completed.</td>
+</tr>
+<tr>
+<td><code>last_status</code></td>
+<td>VARCHAR(16)</td>
+<td>—</td>
+<td><code>success</code> | <code>failed</code> |
+<code>in_progress</code>.</td>
+</tr>
+<tr>
+<td><code>last_error_message</code></td>
+<td>TEXT</td>
+<td>—</td>
+<td>Null when last run succeeded.</td>
+</tr>
+<tr>
+<td><code>records_processed</code></td>
+<td>INT</td>
+<td>—</td>
+<td>Count from the last run.</td>
+</tr>
+<tr>
+<td><code>last_since_param</code></td>
+<td>DATE</td>
+<td>—</td>
+<td>Cursor value sent on next call as <code>updated_since</code> /
+<code>left_since</code> / <code>deleted_since</code>.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="refresh-strategy-informational">4. Refresh strategy
+(informational)</h2>
+<ul>
+<li><strong>Transactional</strong> endpoints (<code>/people</code>,
+<code>/leavers</code>, <code>/deleted</code>) accept
+<code>updated_since</code> / <code>left_since</code> /
+<code>deleted_since</code> and are <strong>paginated</strong>
+(<code>per_page</code> &lt; 200, <code>page</code>). Use
+<code>jo_sync_status.last_since_param</code> to drive incremental
+pulls.</li>
+<li><strong>Reference</strong> endpoints are not paginated and have no
+<code>since</code> parameter — pull the whole list each refresh;
+replace-by-id is simplest.</li>
+<li>On receipt of a <code>/leavers</code> record: set
+<code>jo_people.status=&#39;leaver&#39;</code>, populate <code>left_on</code>,
+null out PII columns per source rule.</li>
+<li>On receipt of a <code>/deleted</code> record: set
+<code>jo_people.status=&#39;deleted&#39;</code>, populate
+<code>deleted_on</code>, null out everything else (soft tombstone for
+downstream RAM consumers).</li>
+<li><strong><code>personal_code</code> is the only safe matching
+key</strong> — never match on <code>id</code> (AD object id) or
+<code>email</code>, both of which the source warns can change or be
+reused.</li>
+</ul>
+</body>
+</html>

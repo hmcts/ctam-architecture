@@ -1,0 +1,41 @@
+erDiagram
+    jo_people {
+        varchar personal_code PK
+        varchar status
+        varchar surname
+        varchar email
+    }
+    jo_appointments {
+        int appointment_id PK
+        varchar personal_code FK
+        varchar role_name
+        date start_date
+        date end_date
+        boolean is_principal
+    }
+    jo_judiciary_role_assignments {
+        int judiciary_role_id PK
+        varchar personal_code FK
+        varchar name
+        date start_date
+        date end_date
+    }
+    jo_authorisations_current {
+        varchar personal_code PK "also FK to jo_people"
+        varchar jurisdiction PK
+        varchar ticket_name PK
+    }
+    jo_authorisations_with_dates {
+        int authorisation_id PK
+        varchar personal_code FK
+        int appointment_id FK
+        varchar ticket
+        date start_date
+        date end_date
+    }
+
+    jo_people ||--o{ jo_appointments                    : has
+    jo_people ||--o{ jo_judiciary_role_assignments      : has
+    jo_people ||--o{ jo_authorisations_current          : has
+    jo_people ||--o{ jo_authorisations_with_dates       : has
+    jo_appointments ||--o{ jo_authorisations_with_dates : appointment_id
