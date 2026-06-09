@@ -29,7 +29,7 @@ Per the agreed approach, refresh-status columns (`last_synced_at`, page cursor, 
 
 ## ER Diagram — Transactional + Reference (full)
 
-![Full ER diagram](jo-er-diagram-full.png)
+![Full ER diagram](../diagrams/jo-er-diagram-full.png)
 
 ---
 
@@ -37,4 +37,4 @@ Per the agreed approach, refresh-status columns (`last_synced_at`, page cursor, 
 
 For day-to-day queries against JOH data, this is the most useful slice:
 
-![Transactional core ER diagram](jo-er-diagram-core.png)
+![Transactional core ER diagram](../diagrams/jo-er-diagram-core.png)

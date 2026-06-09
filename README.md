@@ -12,12 +12,54 @@ RAM will be delivered in stages. The initial stage focuses on Tribunals, with re
 2. **ET**
 3. **IAC**
 
-## Previewing the Diagrams
+## Folder structure
 
-The architecture is modelled in [LikeC4](https://likec4.dev). You can view the output docs in the folder architecture/tobe/output. Or serve it locally with:
+```
+ram-architecture/
+├── input-docs/                       Raw inputs from source systems (PDFs, etc.)
+│   ├── jo/                           Judicial Office / eLinks source docs
+│   └── mrd/                          MRD source docs
+│
+├── architecture/                     PROGRAM-LEVEL architecture
+│   ├── asis/SSCS/                    As-is artefacts (per jurisdiction)
+│   └── tobe/                         To-be architecture
+│       ├── ram-architecture.c4       LikeC4 source model
+│       └── diagrams/                 Rendered LikeC4 PNGs
+│
+└── docs/                             DETAILED design docs
+    └── integrations/
+        ├── jo/                       JO (eLinks) integration
+        │   ├── jo-er-diagram.md      ER diagram narrative
+        │   ├── jo-schema-mapping.md  Column-level source→RAM mapping
+        │   ├── diagrams/             PlantUML source + rendered PNGs
+        │   └── confluence/           Confluence-ready HTML exports
+        └── mrd/                      (placeholder for next integration)
+```
+
+## Previewing the Architecture Diagrams (LikeC4)
+
+The program-level architecture is modelled in [LikeC4](https://likec4.dev). Rendered exports are committed at `architecture/tobe/diagrams/`. To serve interactively:
 
 ```bash
 ./scripts/serve.sh
 ```
 
+To re-export PNGs after editing the `.c4` model (requires Playwright Chromium one-time install: `npx playwright install chromium`):
+
+```bash
+likec4 export png architecture --output architecture/tobe/diagrams --flatten
+```
+
+The `--flatten` flag is important — without it LikeC4 mirrors the source folder structure and writes to `diagrams/tobe/<view>.png` instead.
+
 Requires `likec4` on your PATH (`npm install -g likec4`).
+
+## Integration ER Diagrams (PlantUML)
+
+Integration-level ER diagrams (e.g. `docs/integrations/jo/`) are authored in PlantUML. To re-render after edits (requires `brew install plantuml`):
+
+```bash
+plantuml -tpng docs/integrations/jo/diagrams/*.puml
+```
+
+See [`docs/integrations/jo/jo-er-diagram.md`](./docs/integrations/jo/jo-er-diagram.md) for the JO integration entry point, and [`docs/integrations/jo/confluence/README.md`](./docs/integrations/jo/confluence/README.md) for the Confluence publishing workflow.

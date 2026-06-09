@@ -29,18 +29,26 @@ Per the agreed approach, refresh-status columns (`last_synced_at`, page cursor, 
 
 ## Diagrams
 
-The diagrams are kept as standalone `.mmd` files so they render reliably in VS Code Mermaid extensions (and in any other Mermaid-aware tool):
+The diagrams are authored in **PlantUML** (`.puml` sources) with rendered `.png` outputs alongside. PlantUML is used in preference to Mermaid because it supports straight orthogonal connection lines for ER diagrams (Mermaid's `erDiagram` renderer hardcodes bezier curves).
 
-| Diagram | File | Description |
-|---|---|---|
-| Full ER diagram | [`jo-er-diagram-full.mmd`](./jo-er-diagram-full.mmd) | All 17 tables — transactional, reference and sync. |
-| Transactional core | [`jo-er-diagram-core.mmd`](./jo-er-diagram-core.mmd) | `jo_people` and its direct children only — the most useful slice for day-to-day JOH queries. |
+| Diagram | Source | Rendered | Description |
+|---|---|---|---|
+| Full ER diagram | [`diagrams/jo-er-diagram-full.puml`](./diagrams/jo-er-diagram-full.puml) | [`diagrams/jo-er-diagram-full.png`](./diagrams/jo-er-diagram-full.png) | All 17 tables — transactional, reference and sync. |
+| Transactional core | [`diagrams/jo-er-diagram-core.puml`](./diagrams/jo-er-diagram-core.puml) | [`diagrams/jo-er-diagram-core.png`](./diagrams/jo-er-diagram-core.png) | `jo_people` and its direct children only — the most useful slice for day-to-day JOH queries. |
 
-### How to view in VS Code
+### Quick preview
 
-Install one of:
+![Transactional core](./diagrams/jo-er-diagram-core.png)
 
-- **Markdown Preview Mermaid Support** (`bierner.markdown-mermaid`) — then open a `.mmd` file and run *"Mermaid: Preview"* from the command palette, or
-- **Mermaid Editor** (`tomoyukim.vscode-mermaid-editor`) — opens `.mmd` files in a live preview pane with export-to-SVG/PNG.
+For the full diagram, open [`diagrams/jo-er-diagram-full.png`](./diagrams/jo-er-diagram-full.png).
 
-Either extension will render the `.mmd` files directly. The diagrams are also valid input to the Mermaid CLI (`mmdc -i jo-er-diagram-full.mmd -o jo-er-diagram-full.svg`) if you want to commit rendered images.
+### Re-rendering after edits
+
+PlantUML is required on PATH (`brew install plantuml`). From the repo root:
+
+```bash
+plantuml -tpng docs/integrations/jo/diagrams/jo-er-diagram-full.puml \
+                docs/integrations/jo/diagrams/jo-er-diagram-core.puml
+```
+
+After re-rendering, regenerate the Confluence HTML (see [`confluence/README.md`](./confluence/README.md)) so the embedded image stays in sync.
