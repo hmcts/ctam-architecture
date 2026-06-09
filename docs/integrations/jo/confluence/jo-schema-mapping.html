@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>JO (eLinks) Integration — RAM Schema &amp; Source Mapping</title>
+  <title>jo-schema-mapping.confluence</title>
   <style>
 
 code{white-space: pre-wrap;}
@@ -39,10 +39,6 @@ blockquote { border-left: 4px solid #DFE1E6; margin: 1rem 0; padding: .25rem 1re
 </style>
 </head>
 <body>
-<header id="title-block-header">
-<h1 class="title">JO (eLinks) Integration — RAM Schema &amp; Source
-Mapping</h1>
-</header>
 <h1 id="jo-elinks-integration-ram-schema-source-mapping">JO (eLinks)
 Integration — RAM Schema &amp; Source Mapping</h1>
 <p>This document specifies the <strong>RAM tables</strong> that
@@ -199,6 +195,32 @@ attribute (not a real jurisdiction id). RAM faithfully replicates this —
 <code>jurisdiction</code> column (it carries the ticket category name
 when source jurisdiction is <code>Courts</code>). This is the source’s
 behaviour, not a RAM transformation.</p>
+<h3 id="location-data-constraints-and-warnings">1.7 Location data —
+constraints and warnings</h3>
+<p>Location data in <code>jo_appointments</code> has several important
+constraints documented by the source:</p>
+<ul>
+<li><strong>Belongs to the Appointment, not the JOH</strong> — a JOH
+with multiple Appointments may indirectly have multiple locations.
+Location describes the contractual context of the Appointment, not where
+the JOH is physically working.</li>
+<li><strong>Set at appointment creation, not updated</strong> — location
+is captured when the Appointment is created and is not subsequently
+maintained. It may not reflect the JOH’s current work location.</li>
+<li><strong>Cross-type location IDs are unrelated</strong> — location
+IDs for identically-named geographic areas across different entity types
+are entirely separate records with different IDs. For example, the
+“South East” region for Coroners (<code>CORONERS_REGION</code>) has a
+different <code>id</code> from “South East” for LJAs
+(<code>MAGS_REGION</code>). Do not compare or join location data across
+entity types using IDs.</li>
+<li><strong>Tribunals chamber is not directly surfaced</strong> — for
+Tribunal appointments, TRIBS_CHAMBER (level 2 of the hierarchy) has no
+dedicated attribute. To retrieve it: follow
+<code>jo_appointments.base_location_id</code> →
+<code>jo_base_locations.parent_id</code> → <code>jo_locations.id</code>.
+That <code>jo_locations</code> row is the chamber.</li>
+</ul>
 <hr />
 <h2 id="table-list">2. Table list</h2>
 <table>
@@ -572,8 +594,10 @@ a role at a location, under a contract type.</p>
 <td>VARCHAR(32)</td>
 <td>—</td>
 <td><code>type</code> (JHR:appointment_histories.location_id)</td>
-<td><code>&quot;Tribunal&quot;</code>, <code>&quot;Advisory Committee&quot;</code>,
-<code>&quot;LJA&quot;</code>, <code>&quot;Courts&quot;</code>, <code>&quot;Mags Court&quot;</code>,
+<td>Static text from source. One of: <code>&quot;Tribunals&quot;</code>,
+<code>&quot;Advisory Committee&quot;</code>, <code>&quot;LJA&quot;</code>,
+<code>&quot;Courts&quot;</code>, <code>&quot;Mags Area Committee&quot;</code>,
+<code>&quot;Mags Area Sub Committee&quot;</code>, <code>&quot;Mags Court&quot;</code>,
 <code>&quot;Coroners&quot;</code>.</td>
 </tr>
 <tr>
@@ -581,29 +605,35 @@ a role at a location, under a contract type.</p>
 <td>VARCHAR(128)</td>
 <td>—</td>
 <td><code>court_name</code> (JHR:appointment_histories.location_id)</td>
-<td>Mapping depends on <code>type</code> — see source “Locations”
-technical note.</td>
+<td>Lowest named entity in the location hierarchy (varies by
+<code>type</code>). e.g. <code>&quot;Morpeth County Court&quot;</code> for Courts,
+<code>&quot;Surrey LJA&quot;</code> for LJA, <code>&quot;North East&quot;</code> for
+Tribunals.</td>
 </tr>
 <tr>
 <td><code>court_type</code></td>
 <td>VARCHAR(128)</td>
 <td>—</td>
 <td><code>court_type</code> (JHR:appointment_histories.location_id)</td>
-<td>As above.</td>
+<td>Mid-level entity (varies by <code>type</code>). e.g. parent AC for
+Mags types, Tier for Tribunals (<code>&quot;First Tier Tribunal&quot;</code>).
+NULL for Courts.</td>
 </tr>
 <tr>
 <td><code>circuit</code></td>
 <td>VARCHAR(128)</td>
 <td>—</td>
 <td><code>circuit</code> (JHR:appointment_histories.location_id)</td>
-<td>As above.</td>
+<td><strong>Courts only</strong> (= COURTS_REGION,
+e.g. <code>&quot;North East&quot;</code>). NULL for all other types.</td>
 </tr>
 <tr>
 <td><code>bench</code></td>
 <td>VARCHAR(128)</td>
 <td>—</td>
 <td><code>bench</code> (JHR:appointment_histories.location_id)</td>
-<td>As above.</td>
+<td><strong>LJA</strong> (= MAGS_AC_LJA) and <strong>Mags Court</strong>
+(= MAGS_AC_COURT_NAME) only. NULL for all other types.</td>
 </tr>
 <tr>
 <td><code>advisory_committee_area</code></td>
@@ -611,14 +641,18 @@ technical note.</td>
 <td>—</td>
 <td><code>advisory_committee_area</code>
 (JHR:appointment_histories.location_id)</td>
-<td>As above.</td>
+<td><strong>LJA</strong> (= MAGS_AC) and <strong>Mags Court</strong> (=
+MAGS_AC) only. NULL for all other types.</td>
 </tr>
 <tr>
 <td><code>location</code></td>
 <td>VARCHAR(128)</td>
 <td>—</td>
 <td><code>location</code> (JHR:appointment_histories.location_id)</td>
-<td>Region or national; mapping depends on <code>type</code>.</td>
+<td>Geographic area. For all non-Tribunal types this is the top-level
+region (e.g. <code>&quot;North East&quot;</code>). <strong>For Tribunals</strong>,
+this is TRIBS_LOCATION (the specific venue name, not a broad
+region).</td>
 </tr>
 <tr>
 <td><code>base_location</code></td>
@@ -626,7 +660,10 @@ technical note.</td>
 <td>—</td>
 <td><code>base_location</code>
 (JHR:appointment_histories.location_id)</td>
-<td>Denormalised name. <code>&quot;Reading Magistrates Court&quot;</code>.</td>
+<td>Denormalised name of the leaf location.
+<code>&quot;Reading Magistrates Court&quot;</code>. <strong>For
+Tribunals</strong>, the source concatenates Chamber and Location:
+<code>&quot;Social Entitlement Chamber - North East&quot;</code>.</td>
 </tr>
 <tr>
 <td><code>base_location_id</code></td>
@@ -1060,6 +1097,12 @@ Coroners.</td>
 </tr>
 </tbody>
 </table>
+<p><strong>Tribunals chamber traversal</strong> — For Tribunal
+appointments, <code>jo_appointments.base_location_id</code> points to a
+TRIBS_LOCATION (leaf node). TRIBS_CHAMBER (one level up) is not surfaced
+as a standalone appointment attribute; retrieve it by following
+<code>jo_base_locations.parent_id</code> → <code>jo_locations.id</code>.
+That <code>jo_locations</code> row is the chamber (see §1.7).</p>
 <h3 id="jo_contract_types">3.8 <code>jo_contract_types</code></h3>
 <blockquote>
 <p>Reference list of appointment contract types. Referenced by

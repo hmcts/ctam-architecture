@@ -50,6 +50,14 @@ Refresh status is **not** stored on functional tables. A single `jo_sync_status`
 ### 1.6 Special case — `authorisations_with_dates.jurisdiction_id`
 The source documents an edge case: when an authorisation's `jurisdiction == "Courts"`, the source returns the **ticket-category id** in the `jurisdiction_id` attribute (not a real jurisdiction id). RAM faithfully replicates this — `jo_authorisations_with_dates.jurisdiction_id` is FK to `jo_jurisdictions` **unless** `jurisdiction = 'Courts'`, in which case it is FK to `jo_ticket_categories`. The same quirk applies to the string `jurisdiction` column (it carries the ticket category name when source jurisdiction is `Courts`). This is the source's behaviour, not a RAM transformation.
 
+### 1.7 Location data — constraints and warnings
+Location data in `jo_appointments` has several important constraints documented by the source:
+
+- **Belongs to the Appointment, not the JOH** — a JOH with multiple Appointments may indirectly have multiple locations. Location describes the contractual context of the Appointment, not where the JOH is physically working.
+- **Set at appointment creation, not updated** — location is captured when the Appointment is created and is not subsequently maintained. It may not reflect the JOH's current work location.
+- **Cross-type location IDs are unrelated** — location IDs for identically-named geographic areas across different entity types are entirely separate records with different IDs. For example, the "South East" region for Coroners (`CORONERS_REGION`) has a different `id` from "South East" for LJAs (`MAGS_REGION`). Do not compare or join location data across entity types using IDs.
+- **Tribunals chamber is not directly surfaced** — for Tribunal appointments, TRIBS_CHAMBER (level 2 of the hierarchy) has no dedicated attribute. To retrieve it: follow `jo_appointments.base_location_id` → `jo_base_locations.parent_id` → `jo_locations.id`. That `jo_locations` row is the chamber.
+
 ---
 
 ## 2. Table list
@@ -125,14 +133,14 @@ For every mapping table below:
 | `personal_code` | VARCHAR(32) | FK → `jo_people.personal_code` | (parent in `/people` array) | Link to parent JOH. |
 | `role_name` | VARCHAR(128) | — | `role_name` (JHR:appointment_histories.appointment_title_id) | Denormalised role display name. `"Circuit Judge"`. |
 | `role_name_id` | INT | FK → `jo_appointment_titles.id` | `role_name_id` (JHR:appointment_histories.appointment_title_id) | Stable FK. |
-| `type` | VARCHAR(32) | — | `type` (JHR:appointment_histories.location_id) | `"Tribunal"`, `"Advisory Committee"`, `"LJA"`, `"Courts"`, `"Mags Court"`, `"Coroners"`. |
-| `court_name` | VARCHAR(128) | — | `court_name` (JHR:appointment_histories.location_id) | Mapping depends on `type` — see source "Locations" technical note. |
-| `court_type` | VARCHAR(128) | — | `court_type` (JHR:appointment_histories.location_id) | As above. |
-| `circuit` | VARCHAR(128) | — | `circuit` (JHR:appointment_histories.location_id) | As above. |
-| `bench` | VARCHAR(128) | — | `bench` (JHR:appointment_histories.location_id) | As above. |
-| `advisory_committee_area` | VARCHAR(128) | — | `advisory_committee_area` (JHR:appointment_histories.location_id) | As above. |
-| `location` | VARCHAR(128) | — | `location` (JHR:appointment_histories.location_id) | Region or national; mapping depends on `type`. |
-| `base_location` | VARCHAR(256) | — | `base_location` (JHR:appointment_histories.location_id) | Denormalised name. `"Reading Magistrates Court"`. |
+| `type` | VARCHAR(32) | — | `type` (JHR:appointment_histories.location_id) | Static text from source. One of: `"Tribunals"`, `"Advisory Committee"`, `"LJA"`, `"Courts"`, `"Mags Area Committee"`, `"Mags Area Sub Committee"`, `"Mags Court"`, `"Coroners"`. |
+| `court_name` | VARCHAR(128) | — | `court_name` (JHR:appointment_histories.location_id) | Lowest named entity in the location hierarchy (varies by `type`). e.g. `"Morpeth County Court"` for Courts, `"Surrey LJA"` for LJA, `"North East"` for Tribunals. |
+| `court_type` | VARCHAR(128) | — | `court_type` (JHR:appointment_histories.location_id) | Mid-level entity (varies by `type`). e.g. parent AC for Mags types, Tier for Tribunals (`"First Tier Tribunal"`). NULL for Courts. |
+| `circuit` | VARCHAR(128) | — | `circuit` (JHR:appointment_histories.location_id) | **Courts only** (= COURTS_REGION, e.g. `"North East"`). NULL for all other types. |
+| `bench` | VARCHAR(128) | — | `bench` (JHR:appointment_histories.location_id) | **LJA** (= MAGS_AC_LJA) and **Mags Court** (= MAGS_AC_COURT_NAME) only. NULL for all other types. |
+| `advisory_committee_area` | VARCHAR(128) | — | `advisory_committee_area` (JHR:appointment_histories.location_id) | **LJA** (= MAGS_AC) and **Mags Court** (= MAGS_AC) only. NULL for all other types. |
+| `location` | VARCHAR(128) | — | `location` (JHR:appointment_histories.location_id) | Geographic area. For all non-Tribunal types this is the top-level region (e.g. `"North East"`). **For Tribunals**, this is TRIBS_LOCATION (the specific venue name, not a broad region). |
+| `base_location` | VARCHAR(256) | — | `base_location` (JHR:appointment_histories.location_id) | Denormalised name of the leaf location. `"Reading Magistrates Court"`. **For Tribunals**, the source concatenates Chamber and Location: `"Social Entitlement Chamber - North East"`. |
 | `base_location_id` | INT | FK → `jo_base_locations.id` | `base_location_id` (JHR:appointment_histories.location_id) | Lowest level of the location hierarchy. |
 | `is_principal` | BOOLEAN | — | `is_principal` (JHR:appointmnet.primary) | Exactly one principal Appointment per Current Office Holder. |
 | `start_date` | DATE | — | `start_date` (JHR:appointment_histories.start_date) | |
@@ -209,6 +217,8 @@ For every mapping table below:
 | `end_date` | DATE | — | `end_date` | |
 | `created_at` | TIMESTAMP | — | `created_at` | |
 | `updated_at` | TIMESTAMP | — | `updated_at` | |
+
+**Tribunals chamber traversal** — For Tribunal appointments, `jo_appointments.base_location_id` points to a TRIBS_LOCATION (leaf node). TRIBS_CHAMBER (one level up) is not surfaced as a standalone appointment attribute; retrieve it by following `jo_base_locations.parent_id` → `jo_locations.id`. That `jo_locations` row is the chamber (see §1.7).
 
 ### 3.8 `jo_contract_types`
 
