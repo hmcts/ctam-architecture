@@ -16,6 +16,16 @@
         color indigo
       }
     }
+    element function {
+      notation 'Business Function'
+      style {
+        color sky
+        size small
+      }
+    }
+    tag tribunals_only
+    tag courts_only
+    tag magistrates_only
 
     relationship manual {
       technology 'Manual'
@@ -65,8 +75,22 @@
       capability VacancyManagement "Vacancy Management" "Capability for managing vacancies arising from absences"
       capability JurisdictionSplit "Jurisdiction Split" "Capability for managing jurisdiction split across various jurisdictions"
       capability FeeManagement "Fee Management" "Capability for managing fees associated with the JOH roles - administered by finance users"
-      capability AvailabilityManagement "Availability Management" "Capability for exposing JOH availability information so external clients can consume what RAM produces"
-      capability ItineraryPlanning "Itinerary Planning" "Establishing and maintaining the forward planning horizon across jurisdictions (Tribunals and Courts), enabling JOHs to be allocated to venues"
+      capability AvailabilityManagement "Availability Management" "Capability for exposing JOH availability information so external clients can consume what RAM produces" {
+        function PanelMemberSelfUpdate "Panel member self-updates availability" "Allow panel members to update their own availability"
+        function JOHSelfUpdate "JOH self-updates availability" "Allow JOHs to update their own availability"
+        function AdminUpdateOnBehalfOfJOH "HMCTS admin updates JOH availability on their behalf" "Allow HMCTS admin users to update a JOH's availability on their behalf"
+      }
+      capability ItineraryPlanning "Itinerary Planning" "Establishing and maintaining the forward planning horizon across jurisdictions (Tribunals and Courts), enabling JOHs to be allocated to venues" {
+        function AutoAllocateToVenues "Auto-allocate JOHs/panel members to venues (Tribunals only)" "Rules-driven intelligent auto-allocation of JOHs/panel members to venues. Tribunals jurisdiction only." {
+          #tribunals_only
+        }
+        function CreateAdhocSittingForJOH "Create ad-hoc sitting for a JOH (Courts only)" "Allow a user to create an ad-hoc sitting for a JOH. Courts jurisdiction only." {
+          #courts_only
+        }
+        function CreateUrgentCourtBusiness "Create urgent court business for a JOH (Courts only)" "Allow a user to create urgent court business for a JOH. Courts jurisdiction only." {
+          #courts_only
+        }
+      }
     }
 
     Users.Tribunals -> RAMSystem.RamUI 'uses'
@@ -126,6 +150,18 @@
       include RAMSystem.FeeManagement
       include RAMSystem.AvailabilityManagement
       include RAMSystem.ItineraryPlanning
+      include versionNote
+    }
+
+    view capabilityMapDetailed of RAMSystem {
+      title 'RAM Capabilities — Detailed — v0.1D (Draft)'
+      include RAMSystem.WorkingPatternManagement, RAMSystem.WorkingPatternManagement.*
+      include RAMSystem.AbsenceManagement,        RAMSystem.AbsenceManagement.*
+      include RAMSystem.VacancyManagement,        RAMSystem.VacancyManagement.*
+      include RAMSystem.JurisdictionSplit,        RAMSystem.JurisdictionSplit.*
+      include RAMSystem.FeeManagement,            RAMSystem.FeeManagement.*
+      include RAMSystem.AvailabilityManagement,   RAMSystem.AvailabilityManagement.*
+      include RAMSystem.ItineraryPlanning,        RAMSystem.ItineraryPlanning.*
       include versionNote
     }
   }
