@@ -1,0 +1,295 @@
+@startuml jo-er-diagram-full
+title JO (eLinks) Integration — RAM Schema (Full)
+
+' ---- Visual style ----------------------------------------------------------
+left to right direction
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam dpi 130
+skinparam nodesep 60
+skinparam ranksep 90
+skinparam defaultFontName Helvetica
+skinparam classFontStyle plain
+skinparam class {
+  BackgroundColor #FAFBFC
+  BorderColor #4C6B8A
+  ArrowColor #4C6B8A
+}
+hide circle
+hide methods
+
+' =============================================================
+' Transactional entities (people and what belongs to a person)
+' =============================================================
+
+together {
+  entity "jo_people" as jo_people {
+    * personal_code : varchar <<PK>>  (unique, never reused)
+    --
+    status : varchar  (active | leaver | deleted)
+    ad_object_id : varchar  (eJ AD object id)
+    title : varchar
+    known_as : varchar
+    surname : varchar
+    fullname : varchar
+    initials : varchar
+    post_nominals : varchar
+    email : varchar
+    email_personal : varchar
+    gender : varchar
+    gender_id : int <<FK>>
+    work_phone : varchar
+    disability : boolean
+    retirement_date : date
+    leaving_on : date
+    left_on : date  (set when status = leaver)
+    deleted_on : date  (set when status = deleted)
+  }
+
+  entity "jo_appointments" as jo_appointments {
+    * appointment_id : int <<PK>>
+    --
+    personal_code : varchar <<FK>>
+    role_name : varchar
+    role_name_id : int <<FK>>
+    type : varchar
+    court_name : varchar
+    court_type : varchar
+    circuit : varchar
+    bench : varchar
+    advisory_committee_area : varchar
+    location : varchar
+    base_location : varchar
+    base_location_id : int <<FK>>
+    is_principal : boolean
+    start_date : date
+    end_date : date
+    contract_type : varchar
+    contract_type_id : int <<FK>>
+  }
+
+  entity "jo_judiciary_role_assignments" as jo_judiciary_role_assignments {
+    * judiciary_role_id : int <<PK>>
+    --
+    personal_code : varchar <<FK>>
+    name : varchar
+    judiciary_role_name_id : int <<FK>>
+    start_date : date
+    end_date : date
+  }
+
+  entity "jo_authorisations_current" as jo_authorisations_current {
+    * personal_code : varchar <<PK, FK>>
+    * jurisdiction : varchar <<PK>>
+    * ticket_name : varchar <<PK>>  (from tickets array)
+  }
+
+  entity "jo_authorisations_with_dates" as jo_authorisations_with_dates {
+    * authorisation_id : int <<PK>>
+    --
+    personal_code : varchar <<FK>>
+    appointment_id : int <<FK>>  (nullable for older rows)
+    jurisdiction : varchar
+    jurisdiction_id : int <<FK>>  (see notes for Courts edge case)
+    ticket : varchar
+    ticket_id : int <<FK>>
+    start_date : date
+    end_date : date
+  }
+}
+
+' =============================================================
+' Reference data — Person-related lookups
+' =============================================================
+
+together {
+  entity "jo_genders" as jo_genders {
+    * id : int <<PK>>
+    --
+    name : varchar
+    start_date : date
+    end_date : date
+    created_at : timestamp
+    updated_at : timestamp
+  }
+
+  entity "jo_judiciary_roles" as jo_judiciary_roles {
+    * id : int <<PK>>
+    --
+    name : varchar
+    start_date : date
+    end_date : date
+    created_at : timestamp
+    updated_at : timestamp
+  }
+
+  entity "jo_appointment_titles" as jo_appointment_titles {
+    * id : int <<PK>>
+    --
+    name : varchar
+    start_date : date
+    end_date : date
+    created_at : timestamp
+    updated_at : timestamp
+  }
+
+  entity "jo_contract_types" as jo_contract_types {
+    * id : int <<PK>>
+    --
+    name : varchar
+    salaried : boolean
+    start_date : date
+    end_date : date
+    created_at : timestamp
+    updated_at : timestamp
+  }
+}
+
+' =============================================================
+' Reference data — Location cluster
+' =============================================================
+
+together {
+  entity "jo_locations" as jo_locations {
+    * id : int <<PK>>
+    --
+    name : varchar
+    type_id : int <<FK>>
+    parent_id : int <<FK>>  (self-reference to jo_locations.id)
+    jurisdiction_id : int <<FK>>
+    start_date : date
+    end_date : date
+    created_at : timestamp
+    updated_at : timestamp
+  }
+
+  entity "jo_base_locations" as jo_base_locations {
+    * id : int <<PK>>
+    --
+    name : varchar
+    type_id : int <<FK>>
+    parent_id : int <<FK>>
+    jurisdiction_id : int <<FK>>
+    start_date : date
+    end_date : date
+    created_at : timestamp
+    updated_at : timestamp
+  }
+
+  entity "jo_location_types" as jo_location_types {
+    * id : int <<PK>>
+    --
+    name : varchar
+    jurisdiction_id : int <<FK>>
+    integration_code : varchar
+    start_date : date
+    end_date : date
+    created_at : timestamp
+    updated_at : timestamp
+  }
+}
+
+' =============================================================
+' Reference data — Ticket cluster
+' =============================================================
+
+together {
+  entity "jo_tickets" as jo_tickets {
+    * id : int <<PK>>
+    --
+    name : varchar
+    ticket_category_id : int <<FK>>
+    start_date : date
+    end_date : date
+    created_at : timestamp
+    updated_at : timestamp
+  }
+
+  entity "jo_ticket_categories" as jo_ticket_categories {
+    * id : int <<PK>>
+    --
+    name : varchar
+    type_id : int <<FK>>
+    jurisdiction_id : int <<FK>>
+    parent_category_id : int <<FK>>  (self-reference to jo_ticket_categories.id)
+    start_date : date
+    end_date : date
+    created_at : timestamp
+    updated_at : timestamp
+  }
+
+  entity "jo_ticket_category_types" as jo_ticket_category_types {
+    * id : int <<PK>>
+    --
+    name : varchar
+    jurisdiction_id : int <<FK>>
+    integration_code : varchar
+    start_date : date
+    end_date : date
+    created_at : timestamp
+    updated_at : timestamp
+  }
+}
+
+' =============================================================
+' Cross-cutting reference data + sync tracking
+' =============================================================
+
+entity "jo_jurisdictions" as jo_jurisdictions {
+  * id : int <<PK>>
+  --
+  name : varchar
+  start_date : date
+  end_date : date
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "jo_sync_status" as jo_sync_status {
+  * source_endpoint : varchar <<PK>>
+  --
+  last_synced_at : timestamp
+  last_successful_sync_at : timestamp
+  last_status : varchar
+  last_error_message : text
+  records_processed : int
+  last_since_param : date
+}
+
+' =============================================================
+' Relationships
+' =============================================================
+
+jo_people                  ||--o{ jo_appointments                  : has
+jo_people                  ||--o{ jo_judiciary_role_assignments    : has
+jo_people                  ||--o{ jo_authorisations_current        : has
+jo_people                  ||--o{ jo_authorisations_with_dates     : has
+jo_genders                 ||--o{ jo_people                        : gender_id
+
+jo_appointment_titles      ||--o{ jo_appointments                  : role_name_id
+jo_base_locations          ||--o{ jo_appointments                  : base_location_id
+jo_contract_types          ||--o{ jo_appointments                  : contract_type_id
+
+jo_judiciary_roles         ||--o{ jo_judiciary_role_assignments    : judiciary_role_name_id
+
+jo_appointments            ||--o{ jo_authorisations_with_dates     : appointment_id
+jo_jurisdictions           ||--o{ jo_authorisations_with_dates     : jurisdiction_id (non-Courts)
+jo_ticket_categories       ||--o{ jo_authorisations_with_dates     : jurisdiction_id (when Courts)
+jo_tickets                 ||--o{ jo_authorisations_with_dates     : ticket_id
+
+jo_ticket_categories       ||--o{ jo_tickets                       : ticket_category_id
+jo_ticket_category_types   ||--o{ jo_ticket_categories             : type_id
+jo_jurisdictions           ||--o{ jo_ticket_categories             : jurisdiction_id
+
+jo_location_types          ||--o{ jo_locations                     : type_id
+jo_jurisdictions           ||--o{ jo_locations                     : jurisdiction_id
+
+jo_location_types          ||--o{ jo_base_locations                : type_id
+jo_locations               ||--o{ jo_base_locations                : parent_id
+jo_jurisdictions           ||--o{ jo_base_locations                : jurisdiction_id
+
+jo_jurisdictions           ||--o{ jo_location_types                : jurisdiction_id
+jo_jurisdictions           ||--o{ jo_ticket_category_types         : jurisdiction_id
+
+@enduml

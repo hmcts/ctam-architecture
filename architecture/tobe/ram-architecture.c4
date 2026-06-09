@@ -4,7 +4,10 @@
     element component
     element note {
       style {
-        color muted
+        color amber
+        border dashed
+        size small
+        opacity 60
       }
     }
     element capability {
