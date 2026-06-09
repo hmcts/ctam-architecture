@@ -7,7 +7,6 @@
         color amber
         border dashed
         size small
-        opacity 60
       }
     }
     element capability {
