@@ -151,8 +151,7 @@ DEPRECATED, so they are <strong>not</strong> replicated into RAM:</p>
 </tr>
 <tr>
 <td>The old flat <code>authorisations[]</code> entity</td>
-<td><code>jo_authorisations_current</code> and
-<code>jo_authorisations_with_dates</code></td>
+<td><code>jo_authorisations_with_dates</code></td>
 </tr>
 </tbody>
 </table>
@@ -260,85 +259,78 @@ That <code>jo_locations</code> row is the chamber.</li>
 </tr>
 <tr>
 <td>4</td>
-<td><code>jo_authorisations_current</code></td>
-<td>Transactional</td>
-<td><code>/people</code> → <code>authorisations_current[]</code>
-(flattened)</td>
-</tr>
-<tr>
-<td>5</td>
 <td><code>jo_authorisations_with_dates</code></td>
 <td>Transactional</td>
 <td><code>/people</code> → <code>authorisations_with_dates[]</code></td>
 </tr>
 <tr>
-<td>6</td>
+<td>5</td>
 <td><code>jo_appointment_titles</code></td>
 <td>Reference</td>
 <td><code>/reference_data/appointment_titles</code></td>
 </tr>
 <tr>
-<td>7</td>
+<td>6</td>
 <td><code>jo_base_locations</code></td>
 <td>Reference</td>
 <td><code>/reference_data/base_locations</code></td>
 </tr>
 <tr>
-<td>8</td>
+<td>7</td>
 <td><code>jo_contract_types</code></td>
 <td>Reference</td>
 <td><code>/reference_data/contract_types</code></td>
 </tr>
 <tr>
-<td>9</td>
+<td>8</td>
 <td><code>jo_genders</code></td>
 <td>Reference</td>
 <td><code>/reference_data/genders</code></td>
 </tr>
 <tr>
-<td>10</td>
+<td>9</td>
 <td><code>jo_judiciary_roles</code></td>
 <td>Reference</td>
 <td><code>/reference_data/judiciary_roles</code></td>
 </tr>
 <tr>
-<td>11</td>
+<td>10</td>
 <td><code>jo_jurisdictions</code></td>
 <td>Reference</td>
 <td><code>/reference_data/jurisdictions</code></td>
 </tr>
 <tr>
-<td>12</td>
+<td>11</td>
 <td><code>jo_locations</code></td>
 <td>Reference</td>
 <td><code>/reference_data/locations</code></td>
 </tr>
 <tr>
-<td>13</td>
+<td>12</td>
 <td><code>jo_location_types</code></td>
 <td>Reference</td>
 <td><code>/reference_data/location_types</code></td>
 </tr>
 <tr>
-<td>14</td>
+<td>13</td>
 <td><code>jo_tickets</code></td>
 <td>Reference</td>
 <td><code>/reference_data/tickets</code></td>
 </tr>
 <tr>
-<td>15</td>
+<td>14</td>
 <td><code>jo_ticket_categories</code></td>
 <td>Reference</td>
 <td><code>/reference_data/ticket_categories</code></td>
 </tr>
 <tr>
-<td>16</td>
+<td>15</td>
 <td><code>jo_ticket_category_types</code></td>
 <td>Reference</td>
 <td><code>/reference_data/ticket_category_types</code></td>
 </tr>
 <tr>
-<td>17</td>
+<td>16</td>
 <td><code>jo_sync_status</code></td>
 <td>RAM-internal</td>
 <td>(none — populated by sync job)</td>
@@ -531,10 +523,13 @@ key — eJ may reassign it. Null for <code>deleted</code>.</td>
 <code>per_id</code>, <code>sex</code>,
 <code>authorisations[]</code>.</p>
 <p><strong>Note</strong> the nested arrays (<code>appointments[]</code>,
-<code>judiciary_roles[]</code>, <code>authorisations_current[]</code>,
+<code>judiciary_roles[]</code>,
 <code>authorisations_with_dates[]</code>) are <strong>not</strong>
 columns on <code>jo_people</code> — they each land in their own table,
-linked back via <code>personal_code</code>.</p>
+linked back via <code>personal_code</code>.
+<code>authorisations_current[]</code> is not synced — RAM derives
+current authorisations internally from
+<code>jo_authorisations_with_dates</code>.</p>
 <h3 id="jo_appointments">3.2 <code>jo_appointments</code></h3>
 <blockquote>
 <p>Replicated from <code>/people</code> → <code>appointments[]</code>.
@@ -783,65 +778,7 @@ appointment).</p>
 </tr>
 </tbody>
 </table>
-<h3 id="jo_authorisations_current">3.4
-<code>jo_authorisations_current</code></h3>
-<blockquote>
-<p>Replicated from <code>/people</code> →
-<code>authorisations_current[]</code>. The source array nests
-<code>tickets[]</code> under each <code>{ jurisdiction, tickets }</code>
-entry; RAM <strong>flattens</strong> to one row per
-(<code>personal_code</code>, <code>jurisdiction</code>,
-<code>ticket_name</code>). The source already filters to currently-valid
-authorisations (start ≤ today and end ≥ today or null), so RAM does the
-same.</p>
-</blockquote>
-<table>
-<colgroup>
-<col style="width: 20%" />
-<col style="width: 20%" />
-<col style="width: 20%" />
-<col style="width: 20%" />
-<col style="width: 20%" />
-</colgroup>
-<thead>
-<tr>
-<th>RAM column</th>
-<th>Type</th>
-<th>Key</th>
-<th>Source attribute</th>
-<th>Notes / example</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>personal_code</code></td>
-<td>VARCHAR(32)</td>
-<td>PK, FK → <code>jo_people.personal_code</code></td>
-<td>(parent in <code>/people</code> array)</td>
-<td></td>
-</tr>
-<tr>
-<td><code>jurisdiction</code></td>
-<td>VARCHAR(64)</td>
-<td>PK</td>
-<td><code>jurisdiction</code> (JHR)</td>
-<td><code>&quot;Tribunals&quot;</code>, <code>&quot;Civil&quot;</code>. When source
-jurisdiction is <code>Courts</code>, this carries the <strong>ticket
-category name</strong> instead.</td>
-</tr>
-<tr>
-<td><code>ticket_name</code></td>
-<td>VARCHAR(256)</td>
-<td>PK</td>
-<td><code>tickets[]</code> (JHR) — flattened</td>
-<td>One row per element of the array.</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Note</strong> — this table is intentionally narrow because
-the source doesn’t expose dates/ids on this view. For dates and FKs use
-<code>jo_authorisations_with_dates</code>.</p>
-<h3 id="jo_authorisations_with_dates">3.5
+<h3 id="jo_authorisations_with_dates">3.4
 <code>jo_authorisations_with_dates</code></h3>
 <blockquote>
 <p>Replicated from <code>/people</code> →
@@ -938,7 +875,7 @@ behaviour, not a RAM transformation).</td>
 </tr>
 </tbody>
 </table>
-<h3 id="jo_appointment_titles">3.6
+<h3 id="jo_appointment_titles">3.5
 <code>jo_appointment_titles</code></h3>
 <blockquote>
 <p>Reference list of appointment role names. Referenced by
@@ -1007,7 +944,7 @@ behaviour, not a RAM transformation).</td>
 </tr>
 </tbody>
 </table>
-<h3 id="jo_base_locations">3.7 <code>jo_base_locations</code></h3>
+<h3 id="jo_base_locations">3.6 <code>jo_base_locations</code></h3>
 <blockquote>
 <p>Reference list of locations to which an appointment can be attached.
 Referenced by <code>jo_appointments.base_location_id</code>.</p>
@@ -1103,7 +1040,7 @@ TRIBS_LOCATION (leaf node). TRIBS_CHAMBER (one level up) is not surfaced
 as a standalone appointment attribute; retrieve it by following
 <code>jo_base_locations.parent_id</code> → <code>jo_locations.id</code>.
 That <code>jo_locations</code> row is the chamber (see §1.7).</p>
-<h3 id="jo_contract_types">3.8 <code>jo_contract_types</code></h3>
+<h3 id="jo_contract_types">3.7 <code>jo_contract_types</code></h3>
 <blockquote>
 <p>Reference list of appointment contract types. Referenced by
 <code>jo_appointments.contract_type_id</code>.</p>
@@ -1178,7 +1115,7 @@ That <code>jo_locations</code> row is the chamber (see §1.7).</p>
 </tr>
 </tbody>
 </table>
-<h3 id="jo_genders">3.9 <code>jo_genders</code></h3>
+<h3 id="jo_genders">3.8 <code>jo_genders</code></h3>
 <blockquote>
 <p>Reference list of gender values. Referenced by
 <code>jo_people.gender_id</code>.</p>
@@ -1246,7 +1183,7 @@ That <code>jo_locations</code> row is the chamber (see §1.7).</p>
 </tr>
 </tbody>
 </table>
-<h3 id="jo_judiciary_roles-reference-list">3.10
+<h3 id="jo_judiciary_roles-reference-list">3.9
 <code>jo_judiciary_roles</code> (reference list)</h3>
 <blockquote>
 <p>Reference list of judiciary role names. Referenced by
@@ -1317,7 +1254,7 @@ That <code>jo_locations</code> row is the chamber (see §1.7).</p>
 </tr>
 </tbody>
 </table>
-<h3 id="jo_jurisdictions">3.11 <code>jo_jurisdictions</code></h3>
+<h3 id="jo_jurisdictions">3.10 <code>jo_jurisdictions</code></h3>
 <blockquote>
 <p>Reference list of jurisdictions. Referenced by ticket-related and
 location-related tables.</p>
@@ -1386,7 +1323,7 @@ location-related tables.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="jo_locations">3.12 <code>jo_locations</code></h3>
+<h3 id="jo_locations">3.11 <code>jo_locations</code></h3>
 <blockquote>
 <p>Reference list of <strong>all</strong> locations (the whole
 hierarchy). <code>jo_base_locations</code> is a subset of this
@@ -1478,7 +1415,7 @@ Coroners.</td>
 </tr>
 </tbody>
 </table>
-<h3 id="jo_location_types">3.13 <code>jo_location_types</code></h3>
+<h3 id="jo_location_types">3.12 <code>jo_location_types</code></h3>
 <blockquote>
 <p>Reference list of location-hierarchy types. Referenced by
 <code>jo_locations.type_id</code> and
@@ -1562,7 +1499,7 @@ Coroners.</td>
 </tr>
 </tbody>
 </table>
-<h3 id="jo_tickets">3.14 <code>jo_tickets</code></h3>
+<h3 id="jo_tickets">3.13 <code>jo_tickets</code></h3>
 <blockquote>
 <p>Reference list of ticket (authorisation competency) names. Referenced
 by <code>jo_authorisations_with_dates.ticket_id</code>.</p>
@@ -1637,7 +1574,7 @@ by <code>jo_authorisations_with_dates.ticket_id</code>.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="jo_ticket_categories">3.15
+<h3 id="jo_ticket_categories">3.14
 <code>jo_ticket_categories</code></h3>
 <blockquote>
 <p>Reference list of ticket categories (hierarchy). Referenced by
@@ -1730,7 +1667,7 @@ by <code>jo_authorisations_with_dates.ticket_id</code>.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="jo_ticket_category_types">3.16
+<h3 id="jo_ticket_category_types">3.15
 <code>jo_ticket_category_types</code></h3>
 <blockquote>
 <p>Reference list of ticket-category types. Referenced by
@@ -1814,7 +1751,7 @@ by <code>jo_authorisations_with_dates.ticket_id</code>.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="jo_sync_status-ram-internal-no-source-mapping">3.17
+<h3 id="jo_sync_status-ram-internal-no-source-mapping">3.16
 <code>jo_sync_status</code> (RAM-internal, no source mapping)</h3>
 <blockquote>
 <p>One row per source endpoint, maintained by the RAM ingestion job.
@@ -1910,5 +1847,122 @@ key</strong> — never match on <code>id</code> (AD object id) or
 <code>email</code>, both of which the source warns can change or be
 reused.</li>
 </ul>
+<hr />
+<h2 id="data-warnings">5. Data warnings</h2>
+<p>The following warnings describe known limitations of the eLinks
+source data and API that affect freshness, completeness, and reliability
+of data in RAM. These are characteristics of the source — not defects in
+the sync implementation — and must be understood by anyone building on
+or consuming RAM data.</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>#</th>
+<th>Warning</th>
+<th>Affected fields</th>
+<th>RAM’s behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>W1</td>
+<td><strong>Location fields are frozen at appointment creation and never
+updated by eLinks</strong></td>
+<td><code>jo_appointments</code>: <code>type</code>,
+<code>court_name</code>, <code>court_type</code>, <code>circuit</code>,
+<code>bench</code>, <code>advisory_committee_area</code>,
+<code>location</code>, <code>base_location</code>,
+<code>base_location_id</code></td>
+<td>Replicate faithfully but treat as appointment-creation snapshot
+only. RAM must not use these fields to infer where a JOH is currently
+working. Expose sync timestamp so consumers know the as-at date.</td>
+</tr>
+<tr>
+<td>W2</td>
+<td><strong>Long-dormant leavers may be silently absent from the
+<code>/leavers</code> feed</strong></td>
+<td><code>jo_people.status</code></td>
+<td>Treat <code>status = &#39;active&#39;</code> as “active according to last
+eLinks sync”, not a definitive guarantee. As a compensating control, RAM
+should flag appointments whose <code>end_date</code> has passed but
+whose owner is still <code>active</code>, surfacing them for manual
+review.</td>
+</tr>
+<tr>
+<td>W3</td>
+<td><strong><code>email</code> changes over time and can be
+reused</strong></td>
+<td><code>jo_people.email</code></td>
+<td>Treat as a display/contact field only — never as a lookup or join
+key. Direct all consumers to use <code>personal_code</code> as the only
+stable identity. Staleness within a sync window is expected and
+accepted.</td>
+</tr>
+<tr>
+<td>W4</td>
+<td><strong><code>ad_object_id</code> changes over time and can be
+reused</strong></td>
+<td><code>jo_people.ad_object_id</code></td>
+<td>Same as W3. Treat as informational only. Never use as a join key or
+identity anchor. <code>personal_code</code> is the only safe key.</td>
+</tr>
+<tr>
+<td>W5</td>
+<td><strong><code>is_principal</code> can flip between sync
+cycles</strong> as appointments are created or expire</td>
+<td><code>jo_appointments.is_principal</code></td>
+<td>Treat <code>is_principal = true</code> as accurate as-at the last
+sync timestamp only. Consumers must not cache or independently persist
+this flag outside of RAM’s own data.</td>
+</tr>
+<tr>
+<td>W6</td>
+<td><strong>Reference data has no incremental sync mechanism</strong> —
+no <code>updated_since</code> parameter exists on any
+<code>/reference_data/*</code> endpoint</td>
+<td>All denormalised name columns (e.g. <code>role_name</code>,
+<code>contract_type</code>, <code>base_location</code>)</td>
+<td>Sync all reference endpoints in full on every sync cycle. Always run
+the reference data sync <strong>before</strong> processing transactional
+data in that cycle so FKs and denormalised names are never out of
+step.</td>
+</tr>
+<tr>
+<td>W7</td>
+<td><strong><code>appointment_id</code> is null on authorisation records
+created before August 2025</strong></td>
+<td><code>jo_authorisations_with_dates.appointment_id</code></td>
+<td>Accept and store nulls. All queries joining
+<code>jo_authorisations_with_dates</code> to
+<code>jo_appointments</code> via this field must use a LEFT JOIN. This
+is a permanent historical gap — no remediation is possible.</td>
+</tr>
+<tr>
+<td>W8</td>
+<td><strong><code>email_personal</code> is sparsely populated</strong> —
+3,724+ active JOHs had no value as of the source document date (Oct
+2024)</td>
+<td><code>jo_people.email_personal</code></td>
+<td>Accept and store nulls. Treat as optional/best-effort data.
+Downstream consumers must not assume population. No remediation is
+possible; coverage depends on JOHs supplying the data to JHR.</td>
+</tr>
+<tr>
+<td>W9</td>
+<td><strong>The eLinks API spec is a living document</strong> and may
+change without formal notification</td>
+<td>Whole integration</td>
+<td>Establish a periodic review cadence against the eLinks Swagger
+documentation. Changes to the spec may require updates to sync logic,
+RAM schema, and this mapping document.</td>
+</tr>
+</tbody>
+</table>
 </body>
 </html>

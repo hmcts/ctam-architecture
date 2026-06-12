@@ -79,12 +79,6 @@ together {
     end_date : date
   }
 
-  entity "jo_authorisations_current" as jo_authorisations_current {
-    * personal_code : varchar <<PK, FK>>
-    * jurisdiction : varchar <<PK>>
-    * ticket_name : varchar <<PK>>  (from tickets array)
-  }
-
   entity "jo_authorisations_with_dates" as jo_authorisations_with_dates {
     * authorisation_id : int <<PK>>
     --
@@ -263,7 +257,6 @@ entity "jo_sync_status" as jo_sync_status {
 
 jo_people                  ||--o{ jo_appointments                  : has
 jo_people                  ||--o{ jo_judiciary_role_assignments    : has
-jo_people                  ||--o{ jo_authorisations_current        : has
 jo_people                  ||--o{ jo_authorisations_with_dates     : has
 jo_genders                 ||--o{ jo_people                        : gender_id
 

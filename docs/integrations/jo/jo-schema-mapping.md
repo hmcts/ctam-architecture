@@ -36,7 +36,7 @@ The following are present in the source dictionary but flagged DEPRECATED, so th
 |---|---|
 | `per_id` (integer alias of `personal_code`) | `personal_code` |
 | `sex` | `gender` + `gender_id` |
-| The old flat `authorisations[]` entity | `jo_authorisations_current` and `jo_authorisations_with_dates` |
+| The old flat `authorisations[]` entity | `jo_authorisations_with_dates` |
 
 ### 1.4 Sync / refresh metadata — separate side table
 Refresh status is **not** stored on functional tables. A single `jo_sync_status` table keyed by source endpoint tracks the cursor for incremental refresh. Source-provided `created_at`/`updated_at` timestamps **are** kept on tables that expose them, because they describe the source row (and are needed for the `updated_since` cursor on `/people`).
@@ -67,20 +67,19 @@ Location data in `jo_appointments` has several important constraints documented 
 | 1 | `jo_people` | Transactional | `/people`, `/leavers`, `/deleted` (merged) |
 | 2 | `jo_appointments` | Transactional | `/people` → `appointments[]` |
 | 3 | `jo_judiciary_role_assignments` | Transactional | `/people` → `judiciary_roles[]` |
-| 4 | `jo_authorisations_current` | Transactional | `/people` → `authorisations_current[]` (flattened) |
-| 5 | `jo_authorisations_with_dates` | Transactional | `/people` → `authorisations_with_dates[]` |
-| 6 | `jo_appointment_titles` | Reference | `/reference_data/appointment_titles` |
-| 7 | `jo_base_locations` | Reference | `/reference_data/base_locations` |
-| 8 | `jo_contract_types` | Reference | `/reference_data/contract_types` |
-| 9 | `jo_genders` | Reference | `/reference_data/genders` |
-| 10 | `jo_judiciary_roles` | Reference | `/reference_data/judiciary_roles` |
-| 11 | `jo_jurisdictions` | Reference | `/reference_data/jurisdictions` |
-| 12 | `jo_locations` | Reference | `/reference_data/locations` |
-| 13 | `jo_location_types` | Reference | `/reference_data/location_types` |
-| 14 | `jo_tickets` | Reference | `/reference_data/tickets` |
-| 15 | `jo_ticket_categories` | Reference | `/reference_data/ticket_categories` |
-| 16 | `jo_ticket_category_types` | Reference | `/reference_data/ticket_category_types` |
-| 17 | `jo_sync_status` | RAM-internal | (none — populated by sync job) |
+| 4 | `jo_authorisations_with_dates` | Transactional | `/people` → `authorisations_with_dates[]` |
+| 5 | `jo_appointment_titles` | Reference | `/reference_data/appointment_titles` |
+| 6 | `jo_base_locations` | Reference | `/reference_data/base_locations` |
+| 7 | `jo_contract_types` | Reference | `/reference_data/contract_types` |
+| 8 | `jo_genders` | Reference | `/reference_data/genders` |
+| 9 | `jo_judiciary_roles` | Reference | `/reference_data/judiciary_roles` |
+| 10 | `jo_jurisdictions` | Reference | `/reference_data/jurisdictions` |
+| 11 | `jo_locations` | Reference | `/reference_data/locations` |
+| 12 | `jo_location_types` | Reference | `/reference_data/location_types` |
+| 13 | `jo_tickets` | Reference | `/reference_data/tickets` |
+| 14 | `jo_ticket_categories` | Reference | `/reference_data/ticket_categories` |
+| 15 | `jo_ticket_category_types` | Reference | `/reference_data/ticket_category_types` |
+| 16 | `jo_sync_status` | RAM-internal | (none — populated by sync job) |
 
 ---
 
@@ -121,7 +120,7 @@ For every mapping table below:
 
 **Excluded (deprecated in source):** `per_id`, `sex`, `authorisations[]`.
 
-**Note** the nested arrays (`appointments[]`, `judiciary_roles[]`, `authorisations_current[]`, `authorisations_with_dates[]`) are **not** columns on `jo_people` — they each land in their own table, linked back via `personal_code`.
+**Note** the nested arrays (`appointments[]`, `judiciary_roles[]`, `authorisations_with_dates[]`) are **not** columns on `jo_people` — they each land in their own table, linked back via `personal_code`. `authorisations_current[]` is not synced — RAM derives current authorisations internally from `jo_authorisations_with_dates`.
 
 ### 3.2 `jo_appointments`
 
@@ -161,19 +160,7 @@ For every mapping table below:
 | `start_date` | DATE | — | `start_date` (JHR) | |
 | `end_date` | DATE | — | `end_date` (JHR) | |
 
-### 3.4 `jo_authorisations_current`
-
-> Replicated from `/people` → `authorisations_current[]`. The source array nests `tickets[]` under each `{ jurisdiction, tickets }` entry; RAM **flattens** to one row per (`personal_code`, `jurisdiction`, `ticket_name`). The source already filters to currently-valid authorisations (start ≤ today and end ≥ today or null), so RAM does the same.
-
-| RAM column | Type | Key | Source attribute | Notes / example |
-|---|---|---|---|---|
-| `personal_code` | VARCHAR(32) | PK, FK → `jo_people.personal_code` | (parent in `/people` array) | |
-| `jurisdiction` | VARCHAR(64) | PK | `jurisdiction` (JHR) | `"Tribunals"`, `"Civil"`. When source jurisdiction is `Courts`, this carries the **ticket category name** instead. |
-| `ticket_name` | VARCHAR(256) | PK | `tickets[]` (JHR) — flattened | One row per element of the array. |
-
-**Note** — this table is intentionally narrow because the source doesn't expose dates/ids on this view. For dates and FKs use `jo_authorisations_with_dates`.
-
-### 3.5 `jo_authorisations_with_dates`
+### 3.4 `jo_authorisations_with_dates`
 
 > Replicated from `/people` → `authorisations_with_dates[]`. The detailed view of every ticket the person has been authorised on (current and historic).
 
@@ -189,7 +176,7 @@ For every mapping table below:
 | `start_date` | DATE | — | `start_date` (JHR) | |
 | `end_date` | DATE | — | `end_date` (JHR) | |
 
-### 3.6 `jo_appointment_titles`
+### 3.5 `jo_appointment_titles`
 
 > Reference list of appointment role names. Referenced by `jo_appointments.role_name_id`.
 
@@ -202,7 +189,7 @@ For every mapping table below:
 | `created_at` | TIMESTAMP | — | `created_at` | Source row creation. |
 | `updated_at` | TIMESTAMP | — | `updated_at` | Source row update. |
 
-### 3.7 `jo_base_locations`
+### 3.6 `jo_base_locations`
 
 > Reference list of locations to which an appointment can be attached. Referenced by `jo_appointments.base_location_id`.
 
@@ -220,7 +207,7 @@ For every mapping table below:
 
 **Tribunals chamber traversal** — For Tribunal appointments, `jo_appointments.base_location_id` points to a TRIBS_LOCATION (leaf node). TRIBS_CHAMBER (one level up) is not surfaced as a standalone appointment attribute; retrieve it by following `jo_base_locations.parent_id` → `jo_locations.id`. That `jo_locations` row is the chamber (see §1.7).
 
-### 3.8 `jo_contract_types`
+### 3.7 `jo_contract_types`
 
 > Reference list of appointment contract types. Referenced by `jo_appointments.contract_type_id`.
 
@@ -234,7 +221,7 @@ For every mapping table below:
 | `created_at` | TIMESTAMP | — | `created_at` | |
 | `updated_at` | TIMESTAMP | — | `updated_at` | |
 
-### 3.9 `jo_genders`
+### 3.8 `jo_genders`
 
 > Reference list of gender values. Referenced by `jo_people.gender_id`.
 
@@ -247,7 +234,7 @@ For every mapping table below:
 | `created_at` | TIMESTAMP | — | `created_at` | |
 | `updated_at` | TIMESTAMP | — | `updated_at` | |
 
-### 3.10 `jo_judiciary_roles` (reference list)
+### 3.9 `jo_judiciary_roles` (reference list)
 
 > Reference list of judiciary role names. Referenced by `jo_judiciary_role_assignments.judiciary_role_name_id`. **Note** — not to be confused with the transactional `jo_judiciary_role_assignments`.
 
@@ -260,7 +247,7 @@ For every mapping table below:
 | `created_at` | TIMESTAMP | — | `created_at` | |
 | `updated_at` | TIMESTAMP | — | `updated_at` | |
 
-### 3.11 `jo_jurisdictions`
+### 3.10 `jo_jurisdictions`
 
 > Reference list of jurisdictions. Referenced by ticket-related and location-related tables.
 
@@ -273,7 +260,7 @@ For every mapping table below:
 | `created_at` | TIMESTAMP | — | `created_at` | |
 | `updated_at` | TIMESTAMP | — | `updated_at` | |
 
-### 3.12 `jo_locations`
+### 3.11 `jo_locations`
 
 > Reference list of **all** locations (the whole hierarchy). `jo_base_locations` is a subset of this (locations an appointment can attach to).
 
@@ -289,7 +276,7 @@ For every mapping table below:
 | `created_at` | TIMESTAMP | — | `created_at` | |
 | `updated_at` | TIMESTAMP | — | `updated_at` | |
 
-### 3.13 `jo_location_types`
+### 3.12 `jo_location_types`
 
 > Reference list of location-hierarchy types. Referenced by `jo_locations.type_id` and `jo_base_locations.type_id`.
 
@@ -304,7 +291,7 @@ For every mapping table below:
 | `created_at` | TIMESTAMP | — | `created_at` | |
 | `updated_at` | TIMESTAMP | — | `updated_at` | |
 
-### 3.14 `jo_tickets`
+### 3.13 `jo_tickets`
 
 > Reference list of ticket (authorisation competency) names. Referenced by `jo_authorisations_with_dates.ticket_id`.
 
@@ -318,7 +305,7 @@ For every mapping table below:
 | `created_at` | TIMESTAMP | — | `created_at` | |
 | `updated_at` | TIMESTAMP | — | `updated_at` | |
 
-### 3.15 `jo_ticket_categories`
+### 3.14 `jo_ticket_categories`
 
 > Reference list of ticket categories (hierarchy). Referenced by `jo_tickets.ticket_category_id` and by `jo_authorisations_with_dates.jurisdiction_id` when `jurisdiction = 'Courts'`.
 
@@ -334,7 +321,7 @@ For every mapping table below:
 | `created_at` | TIMESTAMP | — | `created_at` | |
 | `updated_at` | TIMESTAMP | — | `updated_at` | |
 
-### 3.16 `jo_ticket_category_types`
+### 3.15 `jo_ticket_category_types`
 
 > Reference list of ticket-category types. Referenced by `jo_ticket_categories.type_id`.
 
@@ -349,7 +336,7 @@ For every mapping table below:
 | `created_at` | TIMESTAMP | — | `created_at` | |
 | `updated_at` | TIMESTAMP | — | `updated_at` | |
 
-### 3.17 `jo_sync_status` (RAM-internal, no source mapping)
+### 3.16 `jo_sync_status` (RAM-internal, no source mapping)
 
 > One row per source endpoint, maintained by the RAM ingestion job. Holds the cursor used for incremental refresh and the outcome of the last run.
 
@@ -372,3 +359,21 @@ For every mapping table below:
 - On receipt of a `/leavers` record: set `jo_people.status='leaver'`, populate `left_on`, null out PII columns per source rule.
 - On receipt of a `/deleted` record: set `jo_people.status='deleted'`, populate `deleted_on`, null out everything else (soft tombstone for downstream RAM consumers).
 - **`personal_code` is the only safe matching key** — never match on `id` (AD object id) or `email`, both of which the source warns can change or be reused.
+
+---
+
+## 5. Data warnings
+
+The following warnings describe known limitations of the eLinks source data and API that affect freshness, completeness, and reliability of data in RAM. These are characteristics of the source — not defects in the sync implementation — and must be understood by anyone building on or consuming RAM data.
+
+| # | Warning | Affected fields | RAM's behaviour |
+|---|---|---|---|
+| W1 | **Location fields are frozen at appointment creation and never updated by eLinks** | `jo_appointments`: `type`, `court_name`, `court_type`, `circuit`, `bench`, `advisory_committee_area`, `location`, `base_location`, `base_location_id` | Replicate faithfully but treat as appointment-creation snapshot only. RAM must not use these fields to infer where a JOH is currently working. Expose sync timestamp so consumers know the as-at date. |
+| W2 | **Long-dormant leavers may be silently absent from the `/leavers` feed** | `jo_people.status` | Treat `status = 'active'` as "active according to last eLinks sync", not a definitive guarantee. As a compensating control, RAM should flag appointments whose `end_date` has passed but whose owner is still `active`, surfacing them for manual review. |
+| W3 | **`email` changes over time and can be reused** | `jo_people.email` | Treat as a display/contact field only — never as a lookup or join key. Direct all consumers to use `personal_code` as the only stable identity. Staleness within a sync window is expected and accepted. |
+| W4 | **`ad_object_id` changes over time and can be reused** | `jo_people.ad_object_id` | Same as W3. Treat as informational only. Never use as a join key or identity anchor. `personal_code` is the only safe key. |
+| W5 | **`is_principal` can flip between sync cycles** as appointments are created or expire | `jo_appointments.is_principal` | Treat `is_principal = true` as accurate as-at the last sync timestamp only. Consumers must not cache or independently persist this flag outside of RAM's own data. |
+| W6 | **Reference data has no incremental sync mechanism** — no `updated_since` parameter exists on any `/reference_data/*` endpoint | All denormalised name columns (e.g. `role_name`, `contract_type`, `base_location`) | Sync all reference endpoints in full on every sync cycle. Always run the reference data sync **before** processing transactional data in that cycle so FKs and denormalised names are never out of step. |
+| W7 | **`appointment_id` is null on authorisation records created before August 2025** | `jo_authorisations_with_dates.appointment_id` | Accept and store nulls. All queries joining `jo_authorisations_with_dates` to `jo_appointments` via this field must use a LEFT JOIN. This is a permanent historical gap — no remediation is possible. |
+| W8 | **`email_personal` is sparsely populated** — 3,724+ active JOHs had no value as of the source document date (Oct 2024) | `jo_people.email_personal` | Accept and store nulls. Treat as optional/best-effort data. Downstream consumers must not assume population. No remediation is possible; coverage depends on JOHs supplying the data to JHR. |
+| W9 | **The eLinks API spec is a living document** and may change without formal notification | Whole integration | Establish a periodic review cadence against the eLinks Swagger documentation. Changes to the spec may require updates to sync logic, RAM schema, and this mapping document. |

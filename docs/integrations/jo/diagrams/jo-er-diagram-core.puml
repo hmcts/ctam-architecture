@@ -45,12 +45,6 @@ entity "jo_judiciary_role_assignments" as jo_judiciary_role_assignments {
   end_date : date
 }
 
-entity "jo_authorisations_current" as jo_authorisations_current {
-  * personal_code : varchar <<PK, FK>>
-  * jurisdiction : varchar <<PK>>
-  * ticket_name : varchar <<PK>>
-}
-
 entity "jo_authorisations_with_dates" as jo_authorisations_with_dates {
   * authorisation_id : int <<PK>>
   --
@@ -63,7 +57,6 @@ entity "jo_authorisations_with_dates" as jo_authorisations_with_dates {
 
 jo_people       ||--o{ jo_appointments                    : has
 jo_people       ||--o{ jo_judiciary_role_assignments      : has
-jo_people       ||--o{ jo_authorisations_current          : has
 jo_people       ||--o{ jo_authorisations_with_dates       : has
 jo_appointments ||--o{ jo_authorisations_with_dates       : appointment_id
 
