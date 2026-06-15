@@ -1,0 +1,92 @@
+# JO (eLinks) Integration — RAM Schema (Transactional Core + person lookups)
+...@_jo-er-style
+
+title: "JO (eLinks) — Transactional Core" { near: top-center; shape: text; style.font-size: 22; style.bold: true }
+
+direction: right
+
+# ---- Transactional entities ----
+jo_people: {
+  shape: sql_table
+  personal_code: varchar { constraint: primary_key }
+  status: varchar
+  surname: varchar
+  email: varchar
+  gender_id: int { constraint: foreign_key }
+}
+
+jo_appointments: {
+  shape: sql_table
+  appointment_id: int { constraint: primary_key }
+  personal_code: varchar { constraint: foreign_key }
+  role_name_id: int { constraint: foreign_key }
+  base_location_id: int { constraint: foreign_key }
+  contract_type_id: int { constraint: foreign_key }
+  is_principal: boolean
+  start_date: date
+  end_date: date
+}
+
+jo_judiciary_role_assignments: {
+  shape: sql_table
+  judiciary_role_id: int { constraint: primary_key }
+  personal_code: varchar { constraint: foreign_key }
+  judiciary_role_name_id: int { constraint: foreign_key }
+  start_date: date
+  end_date: date
+}
+
+jo_authorisations_with_dates: {
+  shape: sql_table
+  authorisation_id: int { constraint: primary_key }
+  personal_code: varchar { constraint: foreign_key }
+  appointment_id: int { constraint: foreign_key }
+  ticket_id: int { constraint: foreign_key }
+  jurisdiction_id: int { constraint: foreign_key }
+  start_date: date
+  end_date: date
+}
+
+# ---- Person / appointment reference lookups ----
+jo_genders: {
+  shape: sql_table
+  id: int { constraint: primary_key }
+  name: varchar
+}
+
+jo_appointment_titles: {
+  shape: sql_table
+  id: int { constraint: primary_key }
+  name: varchar
+}
+
+jo_contract_types: {
+  shape: sql_table
+  id: int { constraint: primary_key }
+  name: varchar
+  salaried: boolean
+}
+
+jo_judiciary_roles: {
+  shape: sql_table
+  id: int { constraint: primary_key }
+  name: varchar
+}
+
+# ---- External stubs (defined in other cluster diagrams) ----
+jo_base_locations: { class: ext; shape: sql_table; id: int { constraint: primary_key } }
+jo_tickets: { class: ext; shape: sql_table; id: int { constraint: primary_key } }
+
+# ---- Relationships (field-level magnets) ----
+jo_appointments.personal_code -> jo_people.personal_code: has
+jo_judiciary_role_assignments.personal_code -> jo_people.personal_code: has
+jo_authorisations_with_dates.personal_code -> jo_people.personal_code: has
+jo_authorisations_with_dates.appointment_id -> jo_appointments.appointment_id: of
+
+jo_people.gender_id -> jo_genders.id: gender
+jo_appointments.role_name_id -> jo_appointment_titles.id: title
+jo_appointments.contract_type_id -> jo_contract_types.id: contract
+jo_judiciary_role_assignments.judiciary_role_name_id -> jo_judiciary_roles.id: role
+
+jo_appointments.base_location_id -> jo_base_locations.id: { style.stroke-dash: 4 }
+jo_authorisations_with_dates.ticket_id -> jo_tickets.id: { style.stroke-dash: 4 }

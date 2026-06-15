@@ -1,0 +1,46 @@
+# JO (eLinks) Integration — RAM Schema (Reference hub: jurisdictions + sync)
+...@_jo-er-style
+
+title: "JO (eLinks) — Reference hub" { near: top-center; shape: text; style.font-size: 22; style.bold: true }
+
+direction: right
+
+jo_jurisdictions: {
+  shape: sql_table
+  id: int { constraint: primary_key }
+  name: varchar
+  start_date: date
+  end_date: date
+}
+
+# ---- Consumers (compact stubs: only the jurisdiction_id FK row) ----
+jo_location_types: { class: ext; shape: sql_table; jurisdiction_id: int { constraint: foreign_key } }
+jo_locations: { class: ext; shape: sql_table; jurisdiction_id: int { constraint: foreign_key } }
+jo_base_locations: { class: ext; shape: sql_table; jurisdiction_id: int { constraint: foreign_key } }
+jo_ticket_category_types: { class: ext; shape: sql_table; jurisdiction_id: int { constraint: foreign_key } }
+jo_ticket_categories: { class: ext; shape: sql_table; jurisdiction_id: int { constraint: foreign_key } }
+jo_authorisations_with_dates: { class: ext; shape: sql_table; jurisdiction_id: int { constraint: foreign_key } }
+
+# ---- Sync tracking: no FKs, keyed by source endpoint ----
+jo_sync_status: {
+  shape: sql_table
+  source_endpoint: varchar { constraint: primary_key }
+  last_synced_at: timestamp
+  last_successful_sync_at: timestamp
+  last_status: varchar
+  records_processed: int
+  last_since_param: date
+}
+jo_sync_status_note: |md
+  `jo_sync_status` has no foreign keys —
+  one row per source endpoint, tracking
+  refresh state only.
+| { near: bottom-left; style.font-size: 13 }
+
+# ---- Fan-out (every consumer's jurisdiction_id -> jurisdictions.id) ----
+jo_location_types.jurisdiction_id -> jo_jurisdictions.id
+jo_locations.jurisdiction_id -> jo_jurisdictions.id
+jo_base_locations.jurisdiction_id -> jo_jurisdictions.id
+jo_ticket_category_types.jurisdiction_id -> jo_jurisdictions.id
+jo_ticket_categories.jurisdiction_id -> jo_jurisdictions.id
+jo_authorisations_with_dates.jurisdiction_id -> jo_jurisdictions.id: "non-Courts"

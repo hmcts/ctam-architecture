@@ -1,0 +1,50 @@
+# JO (eLinks) Integration — RAM Schema (Ticket cluster)
+...@_jo-er-style
+
+title: "JO (eLinks) — Ticket cluster" { near: top-center; shape: text; style.font-size: 22; style.bold: true }
+
+direction: right
+
+jo_ticket_category_types: {
+  shape: sql_table
+  id: int { constraint: primary_key }
+  name: varchar
+  jurisdiction_id: int { constraint: foreign_key }
+  integration_code: varchar
+}
+
+jo_ticket_categories: {
+  shape: sql_table
+  id: int { constraint: primary_key }
+  name: varchar
+  type_id: int { constraint: foreign_key }
+  jurisdiction_id: int { constraint: foreign_key }
+  parent_category_id: int { constraint: foreign_key }
+}
+
+jo_tickets: {
+  shape: sql_table
+  id: int { constraint: primary_key }
+  name: varchar
+  ticket_category_id: int { constraint: foreign_key }
+}
+
+# ---- External stubs ----
+jo_jurisdictions: { class: ext; shape: sql_table; id: int { constraint: primary_key } }
+jo_authorisations_with_dates: {
+  class: ext
+  shape: sql_table
+  ticket_id: int { constraint: foreign_key }
+  jurisdiction_id: int { constraint: foreign_key }
+}
+
+# ---- Relationships ----
+jo_tickets.ticket_category_id -> jo_ticket_categories.id: category
+jo_ticket_categories.type_id -> jo_ticket_category_types.id: type
+jo_ticket_categories.parent_category_id -> jo_ticket_categories.id: parent
+
+jo_ticket_categories.jurisdiction_id -> jo_jurisdictions.id: { style.stroke-dash: 4 }
+jo_ticket_category_types.jurisdiction_id -> jo_jurisdictions.id: { style.stroke-dash: 4 }
+jo_authorisations_with_dates.ticket_id -> jo_tickets.id: { style.stroke-dash: 4 }
+# Courts edge case: authorisation.jurisdiction_id points at a ticket_category, not a jurisdiction
+jo_authorisations_with_dates.jurisdiction_id -> jo_ticket_categories.id: "when Courts" { style.stroke-dash: 4 }

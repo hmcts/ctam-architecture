@@ -1,0 +1,44 @@
+# Shared style for JO ER diagrams. Imported with: ...@_jo-er-style
+# Light theme: navy header, white rows, blue field names, PK/FK badges.
+
+vars: {
+  d2-config: {
+    layout-engine: elk
+    theme-overrides: {
+      # sql_table header
+      B1: "#1B2A3A"
+      B2: "#1B2A3A"
+      # primary key / accent rows
+      B3: "#E8EDF2"
+      B4: "#D2DCE6"
+      B5: "#C2CFDC"
+      B6: "#4C6B8A"
+      # connections
+      AA2: "#4C6B8A"
+      AA4: "#E8EDF2"
+      AA5: "#F7F9FB"
+      AB4: "#E8EDF2"
+      AB5: "#F7F9FB"
+      # text / borders / row fills
+      N1: "#1B2A3A"
+      N2: "#1B2A3A"
+      N3: "#1B2A3A"
+      N4: "#4C6B8A"
+      N5: "#E8EDF2"
+      N6: "#F7F9FB"
+      N7: "#FFFFFF"
+    }
+  }
+}
+
+classes: {
+  # External stub: a table that is fully defined in another cluster diagram.
+  ext: {
+    style: {
+      stroke: "#9AA7B4"
+      stroke-dash: 4
+      fill: "#F2F4F7"
+      font-color: "#5A6B7B"
+    }
+  }
+}

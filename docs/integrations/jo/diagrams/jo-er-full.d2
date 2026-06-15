@@ -1,0 +1,150 @@
+# JO (eLinks) Integration — RAM Schema (Full)
+...@_jo-er-style
+
+title: "JO (eLinks) Integration — RAM Schema (Full)" { near: top-center; shape: text; style.font-size: 24; style.bold: true }
+
+direction: right
+
+# ============ Transactional ============
+jo_people: {
+  shape: sql_table
+  personal_code: varchar { constraint: primary_key }
+  status: varchar
+  ad_object_id: varchar
+  fullname: varchar
+  surname: varchar
+  email: varchar
+  gender_id: int { constraint: foreign_key }
+  retirement_date: date
+  leaving_on: date
+  left_on: date
+  deleted_on: date
+}
+
+jo_appointments: {
+  shape: sql_table
+  appointment_id: int { constraint: primary_key }
+  personal_code: varchar { constraint: foreign_key }
+  role_name_id: int { constraint: foreign_key }
+  base_location_id: int { constraint: foreign_key }
+  contract_type_id: int { constraint: foreign_key }
+  court_name: varchar
+  is_principal: boolean
+  start_date: date
+  end_date: date
+}
+
+jo_judiciary_role_assignments: {
+  shape: sql_table
+  judiciary_role_id: int { constraint: primary_key }
+  personal_code: varchar { constraint: foreign_key }
+  judiciary_role_name_id: int { constraint: foreign_key }
+  start_date: date
+  end_date: date
+}
+
+jo_authorisations_with_dates: {
+  shape: sql_table
+  authorisation_id: int { constraint: primary_key }
+  personal_code: varchar { constraint: foreign_key }
+  appointment_id: int { constraint: foreign_key }
+  jurisdiction_id: int { constraint: foreign_key }
+  ticket_id: int { constraint: foreign_key }
+  start_date: date
+  end_date: date
+}
+
+# ============ Person / appointment lookups ============
+jo_genders: { shape: sql_table; id: int { constraint: primary_key }; name: varchar }
+jo_judiciary_roles: { shape: sql_table; id: int { constraint: primary_key }; name: varchar }
+jo_appointment_titles: { shape: sql_table; id: int { constraint: primary_key }; name: varchar }
+jo_contract_types: { shape: sql_table; id: int { constraint: primary_key }; name: varchar; salaried: boolean }
+
+# ============ Location cluster ============
+jo_location_types: {
+  shape: sql_table
+  id: int { constraint: primary_key }
+  name: varchar
+  jurisdiction_id: int { constraint: foreign_key }
+}
+jo_locations: {
+  shape: sql_table
+  id: int { constraint: primary_key }
+  name: varchar
+  type_id: int { constraint: foreign_key }
+  parent_id: int { constraint: foreign_key }
+  jurisdiction_id: int { constraint: foreign_key }
+}
+jo_base_locations: {
+  shape: sql_table
+  id: int { constraint: primary_key }
+  name: varchar
+  type_id: int { constraint: foreign_key }
+  parent_id: int { constraint: foreign_key }
+  jurisdiction_id: int { constraint: foreign_key }
+}
+
+# ============ Ticket cluster ============
+jo_ticket_category_types: {
+  shape: sql_table
+  id: int { constraint: primary_key }
+  name: varchar
+  jurisdiction_id: int { constraint: foreign_key }
+}
+jo_ticket_categories: {
+  shape: sql_table
+  id: int { constraint: primary_key }
+  name: varchar
+  type_id: int { constraint: foreign_key }
+  jurisdiction_id: int { constraint: foreign_key }
+  parent_category_id: int { constraint: foreign_key }
+}
+jo_tickets: {
+  shape: sql_table
+  id: int { constraint: primary_key }
+  name: varchar
+  ticket_category_id: int { constraint: foreign_key }
+}
+
+# ============ Cross-cutting ============
+jo_jurisdictions: { shape: sql_table; id: int { constraint: primary_key }; name: varchar }
+jo_sync_status: {
+  shape: sql_table
+  source_endpoint: varchar { constraint: primary_key }
+  last_synced_at: timestamp
+  last_status: varchar
+  records_processed: int
+}
+
+# ============ Relationships ============
+# person scope
+jo_appointments.personal_code -> jo_people.personal_code
+jo_judiciary_role_assignments.personal_code -> jo_people.personal_code
+jo_authorisations_with_dates.personal_code -> jo_people.personal_code
+jo_authorisations_with_dates.appointment_id -> jo_appointments.appointment_id
+jo_people.gender_id -> jo_genders.id
+jo_appointments.role_name_id -> jo_appointment_titles.id
+jo_appointments.contract_type_id -> jo_contract_types.id
+jo_judiciary_role_assignments.judiciary_role_name_id -> jo_judiciary_roles.id
+
+# location scope
+jo_locations.type_id -> jo_location_types.id
+jo_locations.parent_id -> jo_locations.id
+jo_base_locations.type_id -> jo_location_types.id
+jo_base_locations.parent_id -> jo_locations.id
+jo_appointments.base_location_id -> jo_base_locations.id
+
+# ticket scope
+jo_tickets.ticket_category_id -> jo_ticket_categories.id
+jo_ticket_categories.type_id -> jo_ticket_category_types.id
+jo_ticket_categories.parent_category_id -> jo_ticket_categories.id
+jo_authorisations_with_dates.ticket_id -> jo_tickets.id
+
+# jurisdiction hub
+jo_location_types.jurisdiction_id -> jo_jurisdictions.id
+jo_locations.jurisdiction_id -> jo_jurisdictions.id
+jo_base_locations.jurisdiction_id -> jo_jurisdictions.id
+jo_ticket_category_types.jurisdiction_id -> jo_jurisdictions.id
+jo_ticket_categories.jurisdiction_id -> jo_jurisdictions.id
+jo_authorisations_with_dates.jurisdiction_id -> jo_jurisdictions.id: "non-Courts"
+jo_authorisations_with_dates.jurisdiction_id -> jo_ticket_categories.id: "when Courts"

@@ -33,14 +33,13 @@ The PNGs embedded in `jo-er-diagram.html` come across as inline images and Confl
 
 ## Re-generating after edits
 
-PNGs are produced by PlantUML from sources in [`../diagrams/`](../diagrams/) (Mermaid was replaced with PlantUML to get straight orthogonal lines on the ER diagrams). HTML is produced by pandoc from the `*.confluence.md` files in this folder.
+PNGs are produced by D2 from sources in [`../diagrams/`](../diagrams/) (D2 with the ELK layout engine was adopted to get field-level connection points and orthogonal, non-crossing lines on the ER diagrams). HTML is produced by pandoc from the `*.confluence.md` files in this folder.
 
 From the repo root:
 
 ```bash
-# 1) Re-render the PNGs (only needed if the .puml sources changed)
-plantuml -tpng docs/integrations/jo/diagrams/jo-er-diagram-full.puml \
-                docs/integrations/jo/diagrams/jo-er-diagram-core.puml
+# 1) Re-render the PNGs (only needed if the .d2 sources changed)
+scripts/render-jo-er-diagrams.sh
 
 # 2) Re-render the Confluence HTML (embeds PNGs as base64)
 cd docs/integrations/jo/confluence

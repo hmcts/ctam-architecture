@@ -27,14 +27,38 @@ Per the agreed approach, refresh-status columns (`last_synced_at`, page cursor, 
 
 ---
 
-## ER Diagram — Transactional + Reference (full)
+## Transactional core
 
-![Full ER diagram](../diagrams/jo-er-diagram-full.png)
+For day-to-day queries against JOH data, this is the most useful slice — `jo_people` and its direct children, plus the person/appointment lookups:
+
+![Transactional core ER diagram](../diagrams/jo-er-core.png)
 
 ---
 
-## Companion diagram — transactional core only
+## Location cluster
 
-For day-to-day queries against JOH data, this is the most useful slice:
+![Location cluster ER diagram](../diagrams/jo-er-location.png)
 
-![Transactional core ER diagram](../diagrams/jo-er-diagram-core.png)
+---
+
+## Ticket cluster
+
+The Courts edge case — an authorisation's `jurisdiction_id` points at a `jo_ticket_categories` row rather than a `jo_jurisdictions` row — is shown by the dashed "when Courts" edge:
+
+![Ticket cluster ER diagram](../diagrams/jo-er-ticket.png)
+
+---
+
+## Reference hub — jurisdictions & sync
+
+`jo_jurisdictions` is the shared lookup every cluster points back to. `jo_sync_status` has no foreign keys — it tracks refresh state, one row per source endpoint:
+
+![Reference hub ER diagram](../diagrams/jo-er-reference-hub.png)
+
+---
+
+## Full ER diagram
+
+All 16 tables on one canvas — transactional, reference and sync:
+
+![Full ER diagram](../diagrams/jo-er-full.png)

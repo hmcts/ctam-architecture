@@ -1,0 +1,47 @@
+# JO (eLinks) Integration — RAM Schema (Location cluster)
+...@_jo-er-style
+
+title: "JO (eLinks) — Location cluster" { near: top-center; shape: text; style.font-size: 22; style.bold: true }
+
+direction: right
+
+jo_location_types: {
+  shape: sql_table
+  id: int { constraint: primary_key }
+  name: varchar
+  jurisdiction_id: int { constraint: foreign_key }
+  integration_code: varchar
+}
+
+jo_locations: {
+  shape: sql_table
+  id: int { constraint: primary_key }
+  name: varchar
+  type_id: int { constraint: foreign_key }
+  parent_id: int { constraint: foreign_key }
+  jurisdiction_id: int { constraint: foreign_key }
+}
+
+jo_base_locations: {
+  shape: sql_table
+  id: int { constraint: primary_key }
+  name: varchar
+  type_id: int { constraint: foreign_key }
+  parent_id: int { constraint: foreign_key }
+  jurisdiction_id: int { constraint: foreign_key }
+}
+
+# ---- External stubs ----
+jo_jurisdictions: { class: ext; shape: sql_table; id: int { constraint: primary_key } }
+jo_appointments: { class: ext; shape: sql_table; base_location_id: int { constraint: foreign_key } }
+
+# ---- Relationships ----
+jo_locations.type_id -> jo_location_types.id: type
+jo_locations.parent_id -> jo_locations.id: parent
+jo_base_locations.type_id -> jo_location_types.id: type
+jo_base_locations.parent_id -> jo_locations.id: parent
+
+jo_location_types.jurisdiction_id -> jo_jurisdictions.id: { style.stroke-dash: 4 }
+jo_locations.jurisdiction_id -> jo_jurisdictions.id: { style.stroke-dash: 4 }
+jo_base_locations.jurisdiction_id -> jo_jurisdictions.id: { style.stroke-dash: 4 }
+jo_appointments.base_location_id -> jo_base_locations.id: { style.stroke-dash: 4 }

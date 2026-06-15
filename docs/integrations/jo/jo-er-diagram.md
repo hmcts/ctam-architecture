@@ -29,26 +29,30 @@ Per the agreed approach, refresh-status columns (`last_synced_at`, page cursor, 
 
 ## Diagrams
 
-The diagrams are authored in **PlantUML** (`.puml` sources) with rendered `.png` outputs alongside. PlantUML is used in preference to Mermaid because it supports straight orthogonal connection lines for ER diagrams (Mermaid's `erDiagram` renderer hardcodes bezier curves).
+The diagrams are authored in **D2** (`.d2` sources) with rendered `.png` and `.svg` outputs alongside. D2 is used (in preference to PlantUML/Mermaid) because it connects foreign keys **field-to-field** — `jo_appointments.base_location_id -> jo_base_locations.id` — so every relationship attaches to its own row on the table (the OmniGraffle "multiple magnet" principle). Combined with the ELK layout engine, lines route orthogonally and stop criss-crossing.
+
+The 16-table schema is split into focused **cluster views** plus one **full** reference view. Cross-cluster foreign keys appear as dashed/grey **external stub** boxes (key field only) so each cluster is self-contained while signposting where the full table lives.
 
 | Diagram | Source | Rendered | Description |
 |---|---|---|---|
-| Full ER diagram | [`diagrams/jo-er-diagram-full.puml`](./diagrams/jo-er-diagram-full.puml) | [`diagrams/jo-er-diagram-full.png`](./diagrams/jo-er-diagram-full.png) | All 17 tables — transactional, reference and sync. |
-| Transactional core | [`diagrams/jo-er-diagram-core.puml`](./diagrams/jo-er-diagram-core.puml) | [`diagrams/jo-er-diagram-core.png`](./diagrams/jo-er-diagram-core.png) | `jo_people` and its direct children only — the most useful slice for day-to-day JOH queries. |
+| Transactional core | [`diagrams/jo-er-core.d2`](./diagrams/jo-er-core.d2) | [`png`](./diagrams/jo-er-core.png) · [`svg`](./diagrams/jo-er-core.svg) | `jo_people` and its direct children + person/appointment lookups — the most useful slice for day-to-day JOH queries. |
+| Location cluster | [`diagrams/jo-er-location.d2`](./diagrams/jo-er-location.d2) | [`png`](./diagrams/jo-er-location.png) · [`svg`](./diagrams/jo-er-location.svg) | `jo_locations`, `jo_base_locations`, `jo_location_types`. |
+| Ticket cluster | [`diagrams/jo-er-ticket.d2`](./diagrams/jo-er-ticket.d2) | [`png`](./diagrams/jo-er-ticket.png) · [`svg`](./diagrams/jo-er-ticket.svg) | `jo_tickets`, `jo_ticket_categories`, `jo_ticket_category_types`, incl. the Courts edge case. |
+| Reference hub | [`diagrams/jo-er-reference-hub.d2`](./diagrams/jo-er-reference-hub.d2) | [`png`](./diagrams/jo-er-reference-hub.png) · [`svg`](./diagrams/jo-er-reference-hub.svg) | `jo_jurisdictions` fan-out to all consumers + standalone `jo_sync_status`. |
+| Full ER diagram | [`diagrams/jo-er-full.d2`](./diagrams/jo-er-full.d2) | [`png`](./diagrams/jo-er-full.png) · [`svg`](./diagrams/jo-er-full.svg) | All 16 tables — transactional, reference and sync, on one canvas. |
 
 ### Quick preview
 
-![Transactional core](./diagrams/jo-er-diagram-core.png)
+![Transactional core](./diagrams/jo-er-core.png)
 
-For the full diagram, open [`diagrams/jo-er-diagram-full.png`](./diagrams/jo-er-diagram-full.png).
+For the full diagram, open [`diagrams/jo-er-full.png`](./diagrams/jo-er-full.png).
 
 ### Re-rendering after edits
 
-PlantUML is required on PATH (`brew install plantuml`). From the repo root:
+D2 is required on PATH (`brew install d2`). From anywhere:
 
 ```bash
-plantuml -tpng docs/integrations/jo/diagrams/jo-er-diagram-full.puml \
-                docs/integrations/jo/diagrams/jo-er-diagram-core.puml
+scripts/render-jo-er-diagrams.sh
 ```
 
-After re-rendering, regenerate the Confluence HTML (see [`confluence/README.md`](./confluence/README.md)) so the embedded image stays in sync.
+This re-renders all five diagrams to both PNG and SVG using `D2_LAYOUT=elk`. After re-rendering, regenerate the Confluence HTML (see [`confluence/README.md`](./confluence/README.md)) so the embedded images stay in sync.
