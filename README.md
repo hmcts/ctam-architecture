@@ -8,8 +8,8 @@ Architectural artefacts for the **CTAM (Court and Tribunals Availability Managem
 
 CTAM will be delivered in stages. The initial stage focuses on Tribunals, with requirements considered in the following order:
 
-1. **SSCS**
-2. **ET**
+1. **ET**
+2. **SSCS**
 3. **IAC**
 
 ## Folder structure
@@ -38,7 +38,7 @@ ram-architecture/
 
 ## Previewing the Architecture Diagrams (LikeC4)
 
-The program-level architecture is modelled in [LikeC4](https://likec4.dev). Rendered exports are committed at `architecture/tobe/diagrams/`. To serve interactively:
+The program-level architecture is modelled in [LikeC4](https://likec4.dev). Rendered exports are committed at `architecture/tobe/diagrams/` (these are embedded in the design docs and Confluence page templates, so keep them in sync with the model). To serve interactively:
 
 ```bash
 ./scripts/serve.sh
