@@ -1,10 +1,10 @@
-# JO (eLinks) Integration — RAM Schema & Source Mapping
+# JO (eLinks) Integration — CTAM Schema & Source Mapping
 
-This document specifies the **RAM tables** that replicate the **eLinks (Judicial Office)** dataset, and the **column-level mapping** from the source API to RAM.
+This document specifies the **CTAM tables** that replicate the **eLinks (Judicial Office)** dataset, and the **column-level mapping** from the source API to CTAM.
 
 - Source: eLinks (a.k.a. JHR — Judicial HR) REST API, Data Dictionary v2.0 (2025-07-02).
 - Source PDFs: `integrations/jo/eLinks Data Model_*.pdf`, `integrations/jo/eLinks Data Dictionary_*.pdf`.
-- ER diagram: see the companion Confluence page **JO (eLinks) Integration — RAM ER Diagram**.
+- ER diagram: see the companion Confluence page **JO (eLinks) Integration — CTAM ER Diagram**.
 
 ---
 
@@ -13,24 +13,24 @@ This document specifies the **RAM tables** that replicate the **eLinks (Judicial
 ### 1.1 Naming
 - Every replicated table uses the `jo_` prefix.
 - Table names follow the source's endpoint/entity names, with **one disambiguation**:
-  - The source has both a transactional `judiciary_roles[]` array (nested in `/people`) and a reference endpoint `/reference_data/judiciary_roles`. RAM splits these as:
+  - The source has both a transactional `judiciary_roles[]` array (nested in `/people`) and a reference endpoint `/reference_data/judiciary_roles`. CTAM splits these as:
     - `jo_judiciary_role_assignments` — the transactional assignment of a judiciary role to a person.
     - `jo_judiciary_roles` — the reference list of role names.
 - Column names follow the source's `snake_case` attribute names verbatim, except where a source attribute is documented as a deprecated alias (see §1.3).
 
 ### 1.2 JOH lifecycle (`/people`, `/leavers`, `/deleted`)
-The source exposes three endpoints that all describe the **same underlying person** (`judicial_office_holders` in JHR), filtered by lifecycle state. RAM models this as a **single `jo_people` table** keyed by `personal_code` (the only stable, never-reused identifier) with a `status` discriminator:
+The source exposes three endpoints that all describe the **same underlying person** (`judicial_office_holders` in JHR), filtered by lifecycle state. CTAM models this as a **single `jo_people` table** keyed by `personal_code` (the only stable, never-reused identifier) with a `status` discriminator:
 
 | Endpoint that fed the row | `jo_people.status` | Rule on receipt (per source "Actions to be taken") |
 |---|---|---|
 | `/people` (Current Office Holder) | `active` | Upsert by `personal_code`; full attributes populated. |
 | `/leavers` (Leaver) | `leaver` | Upsert by `personal_code`; set `left_on`; **null out all PII** (title, names, email, work_phone, gender, disability, etc.) — keep only `personal_code`, `status`, `left_on`. |
-| `/deleted` (Deleted) | `deleted` | Upsert by `personal_code`; set `deleted_on`; null out **everything** except `personal_code`, `status`, `deleted_on`. The source instruction is to delete the account; we soft-delete so that downstream RAM consumers can detect tombstones. |
+| `/deleted` (Deleted) | `deleted` | Upsert by `personal_code`; set `deleted_on`; null out **everything** except `personal_code`, `status`, `deleted_on`. The source instruction is to delete the account; we soft-delete so that downstream CTAM consumers can detect tombstones. |
 
 Once a row is `deleted` it never becomes anything else (`personal_code` is not reused).
 
 ### 1.3 Deprecated source attributes — excluded
-The following are present in the source dictionary but flagged DEPRECATED, so they are **not** replicated into RAM:
+The following are present in the source dictionary but flagged DEPRECATED, so they are **not** replicated into CTAM:
 
 | Excluded | Use instead |
 |---|---|
@@ -45,10 +45,10 @@ Refresh status is **not** stored on functional tables. A single `jo_sync_status`
 - Reference table PKs use the source integer `id` (= JHR `integration_id`), which the source guarantees stable across JHR releases and across Staging/Production.
 - Transactional table PKs use the source-assigned id (`appointment_id`, `judiciary_role_id`, `authorisation_id`) — also guaranteed unique by JHR.
 - `jo_people.personal_code` is a `VARCHAR` (it can contain alphanumerics like `"A3447"`).
-- Denormalised name columns (e.g. `jo_appointments.role_name`, `jo_appointments.contract_type`) are **preserved as the source provides them** so RAM consumers can read without joining. The integer FK column is the authoritative link.
+- Denormalised name columns (e.g. `jo_appointments.role_name`, `jo_appointments.contract_type`) are **preserved as the source provides them** so CTAM consumers can read without joining. The integer FK column is the authoritative link.
 
 ### 1.6 Special case — `authorisations_with_dates.jurisdiction_id`
-The source documents an edge case: when an authorisation's `jurisdiction == "Courts"`, the source returns the **ticket-category id** in the `jurisdiction_id` attribute (not a real jurisdiction id). RAM faithfully replicates this — `jo_authorisations_with_dates.jurisdiction_id` is FK to `jo_jurisdictions` **unless** `jurisdiction = 'Courts'`, in which case it is FK to `jo_ticket_categories`. The same quirk applies to the string `jurisdiction` column (it carries the ticket category name when source jurisdiction is `Courts`). This is the source's behaviour, not a RAM transformation.
+The source documents an edge case: when an authorisation's `jurisdiction == "Courts"`, the source returns the **ticket-category id** in the `jurisdiction_id` attribute (not a real jurisdiction id). CTAM faithfully replicates this — `jo_authorisations_with_dates.jurisdiction_id` is FK to `jo_jurisdictions` **unless** `jurisdiction = 'Courts'`, in which case it is FK to `jo_ticket_categories`. The same quirk applies to the string `jurisdiction` column (it carries the ticket category name when source jurisdiction is `Courts`). This is the source's behaviour, not a CTAM transformation.
 
 ### 1.7 Location data — constraints and warnings
 Location data in `jo_appointments` has several important constraints documented by the source:
@@ -62,7 +62,7 @@ Location data in `jo_appointments` has several important constraints documented 
 
 ## 2. Table list
 
-| # | RAM table | Category | Source endpoint / path |
+| # | CTAM table | Category | Source endpoint / path |
 |---|---|---|---|
 | 1 | `jo_people` | Transactional | `/people`, `/leavers`, `/deleted` (merged) |
 | 2 | `jo_appointments` | Transactional | `/people` → `appointments[]` |
@@ -79,15 +79,15 @@ Location data in `jo_appointments` has several important constraints documented 
 | 13 | `jo_tickets` | Reference | `/reference_data/tickets` |
 | 14 | `jo_ticket_categories` | Reference | `/reference_data/ticket_categories` |
 | 15 | `jo_ticket_category_types` | Reference | `/reference_data/ticket_category_types` |
-| 16 | `jo_sync_status` | RAM-internal | (none — populated by sync job) |
+| 16 | `jo_sync_status` | CTAM-internal | (none — populated by sync job) |
 
 ---
 
 ## 3. Column mappings
 
 For every mapping table below:
-- **RAM column** — column name in the RAM database.
-- **Type** — proposed RAM column type (Postgres-flavoured; adjust to RAM's chosen DBMS).
+- **CTAM column** — column name in the CTAM database.
+- **Type** — proposed CTAM column type (Postgres-flavoured; adjust to CTAM's chosen DBMS).
 - **PK / FK** — primary key / foreign key designation.
 - **Source attribute** — the attribute name in the source API response (or the JHR table.column where the dictionary makes it explicit).
 - **Notes / example** — transformation, nullability, deprecation, example value.
@@ -96,7 +96,7 @@ For every mapping table below:
 
 > Replicated from `/people`, `/leavers`, `/deleted`. One row per physical JOH, keyed by `personal_code`. Lifecycle is encoded in `status`.
 
-| RAM column | Type | Key | Source attribute (per state) | Notes / example |
+| CTAM column | Type | Key | Source attribute (per state) | Notes / example |
 |---|---|---|---|---|
 | `personal_code` | VARCHAR(32) | PK | `personal_code` (all 3 endpoints) | The only guaranteed-unique, never-reused identifier. `"49728416"`, `"A3447"`. |
 | `status` | VARCHAR(16) | — | *derived* | `'active'` when sourced from `/people`, `'leaver'` from `/leavers`, `'deleted'` from `/deleted`. |
@@ -120,13 +120,13 @@ For every mapping table below:
 
 **Excluded (deprecated in source):** `per_id`, `sex`, `authorisations[]`.
 
-**Note** the nested arrays (`appointments[]`, `judiciary_roles[]`, `authorisations_with_dates[]`) are **not** columns on `jo_people` — they each land in their own table, linked back via `personal_code`. `authorisations_current[]` is not synced — RAM derives current authorisations internally from `jo_authorisations_with_dates`.
+**Note** the nested arrays (`appointments[]`, `judiciary_roles[]`, `authorisations_with_dates[]`) are **not** columns on `jo_people` — they each land in their own table, linked back via `personal_code`. `authorisations_current[]` is not synced — CTAM derives current authorisations internally from `jo_authorisations_with_dates`.
 
 ### 3.2 `jo_appointments`
 
 > Replicated from `/people` → `appointments[]`. Each appointment describes an instance of the person being appointed to a role at a location, under a contract type.
 
-| RAM column | Type | Key | Source attribute | Notes / example |
+| CTAM column | Type | Key | Source attribute | Notes / example |
 |---|---|---|---|---|
 | `appointment_id` | INT | PK | `appointment_id` (JHR:appointment.id) | Source-assigned, unique. `145094`. |
 | `personal_code` | VARCHAR(32) | FK → `jo_people.personal_code` | (parent in `/people` array) | Link to parent JOH. |
@@ -151,7 +151,7 @@ For every mapping table below:
 
 > Replicated from `/people` → `judiciary_roles[]`. Records a JOH having been designated with a named judiciary role (applied to the person, not to an appointment).
 
-| RAM column | Type | Key | Source attribute | Notes / example |
+| CTAM column | Type | Key | Source attribute | Notes / example |
 |---|---|---|---|---|
 | `judiciary_role_id` | INT | PK | `judiciary_role_id` (JHR) | Unique id of the assignment. `145094`. |
 | `personal_code` | VARCHAR(32) | FK → `jo_people.personal_code` | (parent in `/people` array) | |
@@ -164,13 +164,13 @@ For every mapping table below:
 
 > Replicated from `/people` → `authorisations_with_dates[]`. The detailed view of every ticket the person has been authorised on (current and historic).
 
-| RAM column | Type | Key | Source attribute | Notes / example |
+| CTAM column | Type | Key | Source attribute | Notes / example |
 |---|---|---|---|---|
 | `authorisation_id` | INT | PK | `authorisation_id` (JHR) | Unique. `135337`. |
 | `personal_code` | VARCHAR(32) | FK → `jo_people.personal_code` | (parent in `/people` array) | |
 | `appointment_id` | INT | FK → `jo_appointments.appointment_id` | `appointment_id` (JHR) | Nullable. Source guarantees population after August 2025; older rows may be null. |
 | `jurisdiction` | VARCHAR(64) | — | `jurisdiction` (JHR) | When source jurisdiction is `Courts`, carries the **ticket-category name** instead (`"Civil"`, `"Family"`, `"Tribunals"`). |
-| `jurisdiction_id` | INT | FK (conditional) | `jurisdiction_id` (JHR) | Normally FK → `jo_jurisdictions.id`. **When `jurisdiction = 'Courts'`** → FK → `jo_ticket_categories.id` (this is the source's documented behaviour, not a RAM transformation). |
+| `jurisdiction_id` | INT | FK (conditional) | `jurisdiction_id` (JHR) | Normally FK → `jo_jurisdictions.id`. **When `jurisdiction = 'Courts'`** → FK → `jo_ticket_categories.id` (this is the source's documented behaviour, not a CTAM transformation). |
 | `ticket` | VARCHAR(256) | — | `ticket` (JHR) | Denormalised ticket name. `"03 - Disability Living Allowance"`. |
 | `ticket_id` | INT | FK → `jo_tickets.id` | `ticket_id` (JHR) | |
 | `start_date` | DATE | — | `start_date` (JHR) | |
@@ -180,7 +180,7 @@ For every mapping table below:
 
 > Reference list of appointment role names. Referenced by `jo_appointments.role_name_id`.
 
-| RAM column | Type | Key | Source attribute | Notes / example |
+| CTAM column | Type | Key | Source attribute | Notes / example |
 |---|---|---|---|---|
 | `id` | INT | PK | `id` (JHR:integration_id) | Stable across JHR releases and Staging↔Production. |
 | `name` | VARCHAR(128) | — | `name` | `"Magistrate"`, `"Deputy District Judge - Fee-paid"`. |
@@ -193,7 +193,7 @@ For every mapping table below:
 
 > Reference list of locations to which an appointment can be attached. Referenced by `jo_appointments.base_location_id`.
 
-| RAM column | Type | Key | Source attribute | Notes / example |
+| CTAM column | Type | Key | Source attribute | Notes / example |
 |---|---|---|---|---|
 | `id` | INT | PK | `id` (JHR:integration_id) | |
 | `name` | VARCHAR(256) | — | `name` | `"Manchester Civil Justice Centre"`. Denormalised in `jo_appointments.base_location` EXCEPT for Tribunals. |
@@ -211,7 +211,7 @@ For every mapping table below:
 
 > Reference list of appointment contract types. Referenced by `jo_appointments.contract_type_id`.
 
-| RAM column | Type | Key | Source attribute | Notes / example |
+| CTAM column | Type | Key | Source attribute | Notes / example |
 |---|---|---|---|---|
 | `id` | INT | PK | `id` (JHR:integration_id) | |
 | `name` | VARCHAR(64) | — | `name` | `"Salaried"`, `"Fee-paid"`, `"Voluntary"`, `"SPTW-50%"`. |
@@ -225,7 +225,7 @@ For every mapping table below:
 
 > Reference list of gender values. Referenced by `jo_people.gender_id`.
 
-| RAM column | Type | Key | Source attribute | Notes / example |
+| CTAM column | Type | Key | Source attribute | Notes / example |
 |---|---|---|---|---|
 | `id` | INT | PK | `id` (JHR:integration_id) | |
 | `name` | VARCHAR(32) | — | `name` | `"Male"`, `"Female"`, `"Other"`, `"Prefer not to say"`. |
@@ -238,7 +238,7 @@ For every mapping table below:
 
 > Reference list of judiciary role names. Referenced by `jo_judiciary_role_assignments.judiciary_role_name_id`. **Note** — not to be confused with the transactional `jo_judiciary_role_assignments`.
 
-| RAM column | Type | Key | Source attribute | Notes / example |
+| CTAM column | Type | Key | Source attribute | Notes / example |
 |---|---|---|---|---|
 | `id` | INT | PK | `id` (JHR:integration_id) | |
 | `name` | VARCHAR(128) | — | `name` | `"International Committee Member"`, `"Sentencing Council"`, `"Appraisal Judge"`. |
@@ -251,7 +251,7 @@ For every mapping table below:
 
 > Reference list of jurisdictions. Referenced by ticket-related and location-related tables.
 
-| RAM column | Type | Key | Source attribute | Notes / example |
+| CTAM column | Type | Key | Source attribute | Notes / example |
 |---|---|---|---|---|
 | `id` | INT | PK | `id` (JHR:integration_id) | |
 | `name` | VARCHAR(64) | — | `name` | `"Courts"`, `"Tribunals"`, `"Magistrates"`, `"Coroners"`, `"Skills"`. |
@@ -264,7 +264,7 @@ For every mapping table below:
 
 > Reference list of **all** locations (the whole hierarchy). `jo_base_locations` is a subset of this (locations an appointment can attach to).
 
-| RAM column | Type | Key | Source attribute | Notes / example |
+| CTAM column | Type | Key | Source attribute | Notes / example |
 |---|---|---|---|---|
 | `id` | INT | PK | `id` (JHR:integration_id) | |
 | `name` | VARCHAR(256) | — | `name` | `"Manchester Civil Justice Centre"`, `"Wiltshire LJA"`, `"Other Tribunal"`, `"National"`. |
@@ -280,7 +280,7 @@ For every mapping table below:
 
 > Reference list of location-hierarchy types. Referenced by `jo_locations.type_id` and `jo_base_locations.type_id`.
 
-| RAM column | Type | Key | Source attribute | Notes / example |
+| CTAM column | Type | Key | Source attribute | Notes / example |
 |---|---|---|---|---|
 | `id` | INT | PK | `id` (JHR:integration_id) | |
 | `name` | VARCHAR(64) | — | `name` | `"Court"`, `"Area or Parent AC"`, `"Chamber"`. |
@@ -295,7 +295,7 @@ For every mapping table below:
 
 > Reference list of ticket (authorisation competency) names. Referenced by `jo_authorisations_with_dates.ticket_id`.
 
-| RAM column | Type | Key | Source attribute | Notes / example |
+| CTAM column | Type | Key | Source attribute | Notes / example |
 |---|---|---|---|---|
 | `id` | INT | PK | `id` (JHR:integration_id) | |
 | `name` | VARCHAR(256) | — | `name` | `"Welsh Language"`, `"Chancery"`, `"Attempted Murder"`. |
@@ -309,7 +309,7 @@ For every mapping table below:
 
 > Reference list of ticket categories (hierarchy). Referenced by `jo_tickets.ticket_category_id` and by `jo_authorisations_with_dates.jurisdiction_id` when `jurisdiction = 'Courts'`.
 
-| RAM column | Type | Key | Source attribute | Notes / example |
+| CTAM column | Type | Key | Source attribute | Notes / example |
 |---|---|---|---|---|
 | `id` | INT | PK | `id` (JHR:integration_id) | |
 | `name` | VARCHAR(256) | — | `name` | `"Environment"`, `"Direct and Indirect Taxation"`, `"Appeals in Crown Court"`. |
@@ -325,7 +325,7 @@ For every mapping table below:
 
 > Reference list of ticket-category types. Referenced by `jo_ticket_categories.type_id`.
 
-| RAM column | Type | Key | Source attribute | Notes / example |
+| CTAM column | Type | Key | Source attribute | Notes / example |
 |---|---|---|---|---|
 | `id` | INT | PK | `id` (JHR:integration_id) | |
 | `name` | VARCHAR(64) | — | `name` | `"Court Type"`, `"Skills Category"`, `"Tribunal Name"`. |
@@ -336,11 +336,11 @@ For every mapping table below:
 | `created_at` | TIMESTAMP | — | `created_at` | |
 | `updated_at` | TIMESTAMP | — | `updated_at` | |
 
-### 3.16 `jo_sync_status` (RAM-internal, no source mapping)
+### 3.16 `jo_sync_status` (CTAM-internal, no source mapping)
 
-> One row per source endpoint, maintained by the RAM ingestion job. Holds the cursor used for incremental refresh and the outcome of the last run.
+> One row per source endpoint, maintained by the CTAM ingestion job. Holds the cursor used for incremental refresh and the outcome of the last run.
 
-| RAM column | Type | Key | Notes |
+| CTAM column | Type | Key | Notes |
 |---|---|---|---|
 | `source_endpoint` | VARCHAR(128) | PK | e.g. `/people`, `/leavers`, `/deleted`, `/reference_data/tickets`. |
 | `last_synced_at` | TIMESTAMP | — | When the last sync run started. |
@@ -357,23 +357,23 @@ For every mapping table below:
 - **Transactional** endpoints (`/people`, `/leavers`, `/deleted`) accept `updated_since` / `left_since` / `deleted_since` and are **paginated** (`per_page` < 200, `page`). Use `jo_sync_status.last_since_param` to drive incremental pulls.
 - **Reference** endpoints are not paginated and have no `since` parameter — pull the whole list each refresh; replace-by-id is simplest.
 - On receipt of a `/leavers` record: set `jo_people.status='leaver'`, populate `left_on`, null out PII columns per source rule.
-- On receipt of a `/deleted` record: set `jo_people.status='deleted'`, populate `deleted_on`, null out everything else (soft tombstone for downstream RAM consumers).
+- On receipt of a `/deleted` record: set `jo_people.status='deleted'`, populate `deleted_on`, null out everything else (soft tombstone for downstream CTAM consumers).
 - **`personal_code` is the only safe matching key** — never match on `id` (AD object id) or `email`, both of which the source warns can change or be reused.
 
 ---
 
 ## 5. Data warnings
 
-The following warnings describe known limitations of the eLinks source data and API that affect freshness, completeness, and reliability of data in RAM. These are characteristics of the source — not defects in the sync implementation — and must be understood by anyone building on or consuming RAM data.
+The following warnings describe known limitations of the eLinks source data and API that affect freshness, completeness, and reliability of data in CTAM. These are characteristics of the source — not defects in the sync implementation — and must be understood by anyone building on or consuming CTAM data.
 
-| # | Warning | Affected fields | RAM's behaviour |
+| # | Warning | Affected fields | CTAM's behaviour |
 |---|---|---|---|
-| W1 | **Location fields are frozen at appointment creation and never updated by eLinks** | `jo_appointments`: `type`, `court_name`, `court_type`, `circuit`, `bench`, `advisory_committee_area`, `location`, `base_location`, `base_location_id` | Replicate faithfully but treat as appointment-creation snapshot only. RAM must not use these fields to infer where a JOH is currently working. Expose sync timestamp so consumers know the as-at date. |
-| W2 | **Long-dormant leavers may be silently absent from the `/leavers` feed** | `jo_people.status` | Treat `status = 'active'` as "active according to last eLinks sync", not a definitive guarantee. As a compensating control, RAM should flag appointments whose `end_date` has passed but whose owner is still `active`, surfacing them for manual review. |
+| W1 | **Location fields are frozen at appointment creation and never updated by eLinks** | `jo_appointments`: `type`, `court_name`, `court_type`, `circuit`, `bench`, `advisory_committee_area`, `location`, `base_location`, `base_location_id` | Replicate faithfully but treat as appointment-creation snapshot only. CTAM must not use these fields to infer where a JOH is currently working. Expose sync timestamp so consumers know the as-at date. |
+| W2 | **Long-dormant leavers may be silently absent from the `/leavers` feed** | `jo_people.status` | Treat `status = 'active'` as "active according to last eLinks sync", not a definitive guarantee. As a compensating control, CTAM should flag appointments whose `end_date` has passed but whose owner is still `active`, surfacing them for manual review. |
 | W3 | **`email` changes over time and can be reused** | `jo_people.email` | Treat as a display/contact field only — never as a lookup or join key. Direct all consumers to use `personal_code` as the only stable identity. Staleness within a sync window is expected and accepted. |
 | W4 | **`ad_object_id` changes over time and can be reused** | `jo_people.ad_object_id` | Same as W3. Treat as informational only. Never use as a join key or identity anchor. `personal_code` is the only safe key. |
-| W5 | **`is_principal` can flip between sync cycles** as appointments are created or expire | `jo_appointments.is_principal` | Treat `is_principal = true` as accurate as-at the last sync timestamp only. Consumers must not cache or independently persist this flag outside of RAM's own data. |
+| W5 | **`is_principal` can flip between sync cycles** as appointments are created or expire | `jo_appointments.is_principal` | Treat `is_principal = true` as accurate as-at the last sync timestamp only. Consumers must not cache or independently persist this flag outside of CTAM's own data. |
 | W6 | **Reference data has no incremental sync mechanism** — no `updated_since` parameter exists on any `/reference_data/*` endpoint | All denormalised name columns (e.g. `role_name`, `contract_type`, `base_location`) | Sync all reference endpoints in full on every sync cycle. Always run the reference data sync **before** processing transactional data in that cycle so FKs and denormalised names are never out of step. |
 | W7 | **`appointment_id` is null on authorisation records created before August 2025** | `jo_authorisations_with_dates.appointment_id` | Accept and store nulls. All queries joining `jo_authorisations_with_dates` to `jo_appointments` via this field must use a LEFT JOIN. This is a permanent historical gap — no remediation is possible. |
 | W8 | **`email_personal` is sparsely populated** — 3,724+ active JOHs had no value as of the source document date (Oct 2024) | `jo_people.email_personal` | Accept and store nulls. Treat as optional/best-effort data. Downstream consumers must not assume population. No remediation is possible; coverage depends on JOHs supplying the data to JHR. |
-| W9 | **The eLinks API spec is a living document** and may change without formal notification | Whole integration | Establish a periodic review cadence against the eLinks Swagger documentation. Changes to the spec may require updates to sync logic, RAM schema, and this mapping document. |
+| W9 | **The eLinks API spec is a living document** and may change without formal notification | Whole integration | Establish a periodic review cadence against the eLinks Swagger documentation. Changes to the spec may require updates to sync logic, CTAM schema, and this mapping document. |

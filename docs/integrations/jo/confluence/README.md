@@ -6,8 +6,8 @@ These files are derived from the markdown sources in the parent folder and are f
 
 | File | Use |
 |---|---|
-| `jo-er-diagram.html` | Confluence page **JO (eLinks) Integration — RAM ER Diagram**. Embeds both ER diagram PNGs inline (base64) so the HTML is self-contained. |
-| `jo-schema-mapping.html` | Confluence page **JO (eLinks) Integration — RAM Schema & Source Mapping**. Tables for every column. |
+| `jo-er-diagram.html` | Confluence page **JO (eLinks) Integration — CTAM ER Diagram**. Embeds both ER diagram PNGs inline (base64) so the HTML is self-contained. |
+| `jo-schema-mapping.html` | Confluence page **JO (eLinks) Integration — CTAM Schema & Source Mapping**. Tables for every column. |
 | `*.confluence.md` | Intermediate markdown used to produce the HTML. Reference `../diagrams/*.png` for images. Edit and re-run pandoc to refresh. |
 | `.pandoc-confluence.css` | Stylesheet used by pandoc for in-browser preview before paste. |
 

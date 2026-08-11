@@ -35,7 +35,7 @@
   model {
     versionNote = note 'v0.1D (Draft)' 'Diagram revision 0.1 — DRAFT. Subject to change; not yet approved.'
 
-    Users = actor 'Users' 'Users of the RAM system across various user groups' {
+    Users = actor 'Users' 'Users of the CTAM system across various user groups' {
       Tribunals = actor 'Tribunals' 'Tribunals jurisdiction' {
         VenueClerk = actor 'Venue Clerk' 'Tribunals user group responsible for confirming sittings so JOHs can be paid'
         SSCSAdmin = actor 'SSCS Admin' 'Administrative user group for the SSCS tribunal'
@@ -52,29 +52,29 @@
 
     paymentSystem = system 'Payment System' 'External system responsible for processing payments to various JOHs across jurisdictions'
 
-    clients = system 'Clients' 'External client systems that consume availability data from RAM — e.g. to answer questions like which JOH is sitting at which location on a given day'
+    clients = system 'Clients' 'External client systems that consume availability data from CTAM — e.g. to answer questions like which JOH is sitting at which location on a given day'
 
-    mrdSource = system 'MRD Source' 'External source of the MRD dataset, delivered to RAM via an off-system process'
+    mrdSource = system 'MRD Source' 'External source of the MRD dataset, delivered to CTAM via an off-system process'
 
-    RAMSystem = system 'RAM' 'Resource Allocation Manager' {
+    CTAMSystem = system 'CTAM' 'Court and Tribunals Availability Management' {
       component JOHDataScheduler "JOH Data Scheduler" "Responsible for fetching data from JOH source system and persisting raw data to the database"
       component JOHRawStore "JOH Raw Payload Store" "The raw datastore"
       component JOHDataReader "JOH Data Reader" "Reader responsible for reading raw data and sending personnel information to the JOH Management API"
-      component RamDatabase "RAM Database" "Persistent storage for RAM data"
+      component CtamDatabase "CTAM Database" "Persistent storage for CTAM data"
       component SittingManagementAPI "Sitting Management API" "API responsible for managing sittings data"
       component AbsenceManagementAPI "Absence Management API" "API responsible for managing absence workflows, including creating vacancies in response to absences so they can be filled by another JOH"
       component JOHManagementAPI "JOH Management API" "API responsible for managing JOH information and persisting it to the database"
       component AuthorisationManagementAPI "Authorisation Management API" "Resolves the logged-in user's jurisdiction(s) (Courts / Tribunals / Magistrates) and user type within each jurisdiction (e.g. Court User vs RSU User within Courts). The returned authorisation context drives which locations, JOH types, and other lookups are visible to the user in the UI."
       component AvailabilityAPI "Availability API" "Read-only API serving JOH availability data to external client systems — e.g. answers queries like which JOH is sitting at which location on a given day"
-      component MRDDataConsumer "MRD Data Consumer" "Reads the MRD dataset (received off-system) and persists it in the RAM database"
-      component RamUI "Ram User Interface" "User interface for RAM used by various users to manage sittings and view data"
+      component MRDDataConsumer "MRD Data Consumer" "Reads the MRD dataset (received off-system) and persists it in the CTAM database"
+      component CtamUI "CTAM User Interface" "User interface for CTAM used by various users to manage sittings and view data"
 
       capability WorkingPatternManagement "Working Pattern Management" "Capability for managing JOH working patterns"
       capability AbsenceManagement "Absence Management" "Capability for managing JOH absences and the resulting vacancy workflow"
       capability VacancyManagement "Vacancy Management" "Capability for managing vacancies arising from absences"
       capability JurisdictionSplit "Jurisdiction Split" "Capability for managing jurisdiction split across various jurisdictions"
       capability FeeManagement "Fee Management" "Capability for managing fees associated with the JOH roles - administered by finance users"
-      capability AvailabilityManagement "Availability Management" "Capability for exposing JOH availability information so external clients can consume what RAM produces" {
+      capability AvailabilityManagement "Availability Management" "Capability for exposing JOH availability information so external clients can consume what CTAM produces" {
         function PanelMemberSelfUpdate "Panel member self-updates availability" "Allow panel members to update their own availability"
         function JOHSelfUpdate "JOH self-updates availability" "Allow JOHs to update their own availability"
         function AdminUpdateOnBehalfOfJOH "HMCTS admin updates JOH availability on their behalf" "Allow HMCTS admin users to update a JOH's availability on their behalf"
@@ -92,33 +92,33 @@
       }
     }
 
-    Users.Tribunals -> RAMSystem.RamUI 'uses'
-    Users.Tribunals.VenueClerk -> RAMSystem.RamUI 'confirms sittings (enables JOH payment)'
-    Users.Tribunals.SSCSAdmin -> RAMSystem.RamUI 'establishes itinerary for tribunal panel'
-    Users.Courts.CourtUsers -> RAMSystem.RamUI 'uses'
-    Users.Courts.RsuUsers -> RAMSystem.RamUI 'uses'
-    Users.FinanceUsers -> RAMSystem.RamUI 'extracts payment data'
-    RAMSystem.JOHDataScheduler -> johSource 'fetches JOH data via API'
-    RAMSystem.JOHDataScheduler -> RAMSystem.JOHRawStore 'persists raw JSON payload'
-    RAMSystem.JOHDataReader -> RAMSystem.JOHRawStore 'reads persisted JSON'
-    RAMSystem.JOHDataReader -> RAMSystem.JOHManagementAPI 'sends JOH information'
-    RAMSystem.JOHManagementAPI -> RAMSystem.RamDatabase 'persists JOH information'
-    RAMSystem.AbsenceManagementAPI -> RAMSystem.RamDatabase 'persists absences and creates vacancies'
-    RAMSystem.RamUI -> RAMSystem.AbsenceManagementAPI 'manages absences'
-    RAMSystem.RamUI -> RAMSystem.SittingManagementAPI 'adds/updates sittings'
-    RAMSystem.RamUI -> RAMSystem.JOHManagementAPI 'reads JOH information'
-    RAMSystem.RamUI -> RAMSystem.AuthorisationManagementAPI 'loads user authorisations and jurisdiction at login'
-    RAMSystem.AuthorisationManagementAPI -> RAMSystem.RamDatabase 'reads authorisation and jurisdiction data'
-    RAMSystem.SittingManagementAPI -> RAMSystem.RamDatabase 'persists sittings'
+    Users.Tribunals -> CTAMSystem.CtamUI 'uses'
+    Users.Tribunals.VenueClerk -> CTAMSystem.CtamUI 'confirms sittings (enables JOH payment)'
+    Users.Tribunals.SSCSAdmin -> CTAMSystem.CtamUI 'establishes itinerary for tribunal panel'
+    Users.Courts.CourtUsers -> CTAMSystem.CtamUI 'uses'
+    Users.Courts.RsuUsers -> CTAMSystem.CtamUI 'uses'
+    Users.FinanceUsers -> CTAMSystem.CtamUI 'extracts payment data'
+    CTAMSystem.JOHDataScheduler -> johSource 'fetches JOH data via API'
+    CTAMSystem.JOHDataScheduler -> CTAMSystem.JOHRawStore 'persists raw JSON payload'
+    CTAMSystem.JOHDataReader -> CTAMSystem.JOHRawStore 'reads persisted JSON'
+    CTAMSystem.JOHDataReader -> CTAMSystem.JOHManagementAPI 'sends JOH information'
+    CTAMSystem.JOHManagementAPI -> CTAMSystem.CtamDatabase 'persists JOH information'
+    CTAMSystem.AbsenceManagementAPI -> CTAMSystem.CtamDatabase 'persists absences and creates vacancies'
+    CTAMSystem.CtamUI -> CTAMSystem.AbsenceManagementAPI 'manages absences'
+    CTAMSystem.CtamUI -> CTAMSystem.SittingManagementAPI 'adds/updates sittings'
+    CTAMSystem.CtamUI -> CTAMSystem.JOHManagementAPI 'reads JOH information'
+    CTAMSystem.CtamUI -> CTAMSystem.AuthorisationManagementAPI 'loads user authorisations and jurisdiction at login'
+    CTAMSystem.AuthorisationManagementAPI -> CTAMSystem.CtamDatabase 'reads authorisation and jurisdiction data'
+    CTAMSystem.SittingManagementAPI -> CTAMSystem.CtamDatabase 'persists sittings'
 
-    RAMSystem -[manual]-> paymentSystem 'data extract (Phase 1: manually uploaded by users)'
+    CTAMSystem -[manual]-> paymentSystem 'data extract (Phase 1: manually uploaded by users)'
     Users.FinanceUsers -[manual]-> paymentSystem 'uploads extracted payment data (Phase 1: manual)'
 
-    clients -> RAMSystem.AvailabilityAPI 'queries JOH availability (location/date)'
-    RAMSystem.AvailabilityAPI -> RAMSystem.RamDatabase 'reads JOH availability data'
+    clients -> CTAMSystem.AvailabilityAPI 'queries JOH availability (location/date)'
+    CTAMSystem.AvailabilityAPI -> CTAMSystem.CtamDatabase 'reads JOH availability data'
 
-    mrdSource -[manual]-> RAMSystem.MRDDataConsumer 'provides MRD dataset (off-system delivery)'
-    RAMSystem.MRDDataConsumer -> RAMSystem.RamDatabase 'persists MRD data'
+    mrdSource -[manual]-> CTAMSystem.MRDDataConsumer 'provides MRD dataset (off-system delivery)'
+    CTAMSystem.MRDDataConsumer -> CTAMSystem.CtamDatabase 'persists MRD data'
   }
 
   views {
@@ -127,40 +127,40 @@
       include *
     }
 
-    view ramContainers of RAMSystem {
-      title 'RAM - Containers — v0.1D (Draft)'
+    view ctamContainers of CTAMSystem {
+      title 'CTAM - Containers — v0.1D (Draft)'
       include *
-      exclude RAMSystem.WorkingPatternManagement
-      exclude RAMSystem.AbsenceManagement
-      exclude RAMSystem.VacancyManagement
-      exclude RAMSystem.JurisdictionSplit
-      exclude RAMSystem.FeeManagement
-      exclude RAMSystem.AvailabilityManagement
-      exclude RAMSystem.ItineraryPlanning
+      exclude CTAMSystem.WorkingPatternManagement
+      exclude CTAMSystem.AbsenceManagement
+      exclude CTAMSystem.VacancyManagement
+      exclude CTAMSystem.JurisdictionSplit
+      exclude CTAMSystem.FeeManagement
+      exclude CTAMSystem.AvailabilityManagement
+      exclude CTAMSystem.ItineraryPlanning
       include versionNote
     }
 
-    view capabilityMap of RAMSystem {
-      title 'RAM Capabilities — v0.1D (Draft)'
-      include RAMSystem.WorkingPatternManagement
-      include RAMSystem.AbsenceManagement
-      include RAMSystem.VacancyManagement
-      include RAMSystem.JurisdictionSplit
-      include RAMSystem.FeeManagement
-      include RAMSystem.AvailabilityManagement
-      include RAMSystem.ItineraryPlanning
+    view capabilityMap of CTAMSystem {
+      title 'CTAM Capabilities — v0.1D (Draft)'
+      include CTAMSystem.WorkingPatternManagement
+      include CTAMSystem.AbsenceManagement
+      include CTAMSystem.VacancyManagement
+      include CTAMSystem.JurisdictionSplit
+      include CTAMSystem.FeeManagement
+      include CTAMSystem.AvailabilityManagement
+      include CTAMSystem.ItineraryPlanning
       include versionNote
     }
 
-    view capabilityMapDetailed of RAMSystem {
-      title 'RAM Capabilities — Detailed — v0.1D (Draft)'
-      include RAMSystem.WorkingPatternManagement, RAMSystem.WorkingPatternManagement.*
-      include RAMSystem.AbsenceManagement,        RAMSystem.AbsenceManagement.*
-      include RAMSystem.VacancyManagement,        RAMSystem.VacancyManagement.*
-      include RAMSystem.JurisdictionSplit,        RAMSystem.JurisdictionSplit.*
-      include RAMSystem.FeeManagement,            RAMSystem.FeeManagement.*
-      include RAMSystem.AvailabilityManagement,   RAMSystem.AvailabilityManagement.*
-      include RAMSystem.ItineraryPlanning,        RAMSystem.ItineraryPlanning.*
+    view capabilityMapDetailed of CTAMSystem {
+      title 'CTAM Capabilities — Detailed — v0.1D (Draft)'
+      include CTAMSystem.WorkingPatternManagement, CTAMSystem.WorkingPatternManagement.*
+      include CTAMSystem.AbsenceManagement,        CTAMSystem.AbsenceManagement.*
+      include CTAMSystem.VacancyManagement,        CTAMSystem.VacancyManagement.*
+      include CTAMSystem.JurisdictionSplit,        CTAMSystem.JurisdictionSplit.*
+      include CTAMSystem.FeeManagement,            CTAMSystem.FeeManagement.*
+      include CTAMSystem.AvailabilityManagement,   CTAMSystem.AvailabilityManagement.*
+      include CTAMSystem.ItineraryPlanning,        CTAMSystem.ItineraryPlanning.*
       include versionNote
     }
   }

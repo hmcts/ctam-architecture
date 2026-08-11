@@ -2,15 +2,18 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta charset="utf-8" />
-  <meta name="generator" content="pandoc" />
+  <meta name="generator" content="pandoc 3.10" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <title>jo-schema-mapping.confluence</title>
   <style>
 
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 
 ul.task-list[class]{list-style: none;}
@@ -39,18 +42,18 @@ blockquote { border-left: 4px solid #DFE1E6; margin: 1rem 0; padding: .25rem 1re
 </style>
 </head>
 <body>
-<h1 id="jo-elinks-integration-ram-schema-source-mapping">JO (eLinks)
-Integration — RAM Schema &amp; Source Mapping</h1>
-<p>This document specifies the <strong>RAM tables</strong> that
+<h1 id="jo-elinks-integration-ctam-schema-source-mapping">JO (eLinks)
+Integration — CTAM Schema &amp; Source Mapping</h1>
+<p>This document specifies the <strong>CTAM tables</strong> that
 replicate the <strong>eLinks (Judicial Office)</strong> dataset, and the
-<strong>column-level mapping</strong> from the source API to RAM.</p>
+<strong>column-level mapping</strong> from the source API to CTAM.</p>
 <ul>
 <li>Source: eLinks (a.k.a. JHR — Judicial HR) REST API, Data Dictionary
 v2.0 (2025-07-02).</li>
 <li>Source PDFs: <code>integrations/jo/eLinks Data Model_*.pdf</code>,
 <code>integrations/jo/eLinks Data Dictionary_*.pdf</code>.</li>
 <li>ER diagram: see the companion Confluence page <strong>JO (eLinks)
-Integration — RAM ER Diagram</strong>.</li>
+Integration — CTAM ER Diagram</strong>.</li>
 </ul>
 <hr />
 <h2 id="design-decisions">1. Design decisions</h2>
@@ -62,7 +65,7 @@ Integration — RAM ER Diagram</strong>.</li>
 <ul>
 <li>The source has both a transactional <code>judiciary_roles[]</code>
 array (nested in <code>/people</code>) and a reference endpoint
-<code>/reference_data/judiciary_roles</code>. RAM splits these as:
+<code>/reference_data/judiciary_roles</code>. CTAM splits these as:
 <ul>
 <li><code>jo_judiciary_role_assignments</code> — the transactional
 assignment of a judiciary role to a person.</li>
@@ -79,7 +82,7 @@ deprecated alias (see §1.3).</li>
 <code>/deleted</code>)</h3>
 <p>The source exposes three endpoints that all describe the <strong>same
 underlying person</strong> (<code>judicial_office_holders</code> in
-JHR), filtered by lifecycle state. RAM models this as a <strong>single
+JHR), filtered by lifecycle state. CTAM models this as a <strong>single
 <code>jo_people</code> table</strong> keyed by
 <code>personal_code</code> (the only stable, never-reused identifier)
 with a <code>status</code> discriminator:</p>
@@ -117,7 +120,7 @@ gender, disability, etc.) — keep only <code>personal_code</code>,
 <td>Upsert by <code>personal_code</code>; set <code>deleted_on</code>;
 null out <strong>everything</strong> except <code>personal_code</code>,
 <code>status</code>, <code>deleted_on</code>. The source instruction is
-to delete the account; we soft-delete so that downstream RAM consumers
+to delete the account; we soft-delete so that downstream CTAM consumers
 can detect tombstones.</td>
 </tr>
 </tbody>
@@ -127,7 +130,7 @@ can detect tombstones.</td>
 <h3 id="deprecated-source-attributes-excluded">1.3 Deprecated source
 attributes — excluded</h3>
 <p>The following are present in the source dictionary but flagged
-DEPRECATED, so they are <strong>not</strong> replicated into RAM:</p>
+DEPRECATED, so they are <strong>not</strong> replicated into CTAM:</p>
 <table>
 <colgroup>
 <col style="width: 50%" />
@@ -177,8 +180,8 @@ can contain alphanumerics like <code>&quot;A3447&quot;</code>).</li>
 <li>Denormalised name columns
 (e.g. <code>jo_appointments.role_name</code>,
 <code>jo_appointments.contract_type</code>) are <strong>preserved as the
-source provides them</strong> so RAM consumers can read without joining.
-The integer FK column is the authoritative link.</li>
+source provides them</strong> so CTAM consumers can read without
+joining. The integer FK column is the authoritative link.</li>
 </ul>
 <h3 id="special-case-authorisations_with_dates.jurisdiction_id">1.6
 Special case —
@@ -186,14 +189,14 @@ Special case —
 <p>The source documents an edge case: when an authorisation’s
 <code>jurisdiction == &quot;Courts&quot;</code>, the source returns the
 <strong>ticket-category id</strong> in the <code>jurisdiction_id</code>
-attribute (not a real jurisdiction id). RAM faithfully replicates this —
-<code>jo_authorisations_with_dates.jurisdiction_id</code> is FK to
+attribute (not a real jurisdiction id). CTAM faithfully replicates this
+— <code>jo_authorisations_with_dates.jurisdiction_id</code> is FK to
 <code>jo_jurisdictions</code> <strong>unless</strong>
 <code>jurisdiction = &#39;Courts&#39;</code>, in which case it is FK to
 <code>jo_ticket_categories</code>. The same quirk applies to the string
 <code>jurisdiction</code> column (it carries the ticket category name
 when source jurisdiction is <code>Courts</code>). This is the source’s
-behaviour, not a RAM transformation.</p>
+behaviour, not a CTAM transformation.</p>
 <h3 id="location-data-constraints-and-warnings">1.7 Location data —
 constraints and warnings</h3>
 <p>Location data in <code>jo_appointments</code> has several important
@@ -232,7 +235,7 @@ That <code>jo_locations</code> row is the chamber.</li>
 <thead>
 <tr>
 <th>#</th>
-<th>RAM table</th>
+<th>CTAM table</th>
 <th>Category</th>
 <th>Source endpoint / path</th>
 </tr>
@@ -332,21 +335,21 @@ That <code>jo_locations</code> row is the chamber.</li>
 <tr>
 <td>16</td>
 <td><code>jo_sync_status</code></td>
-<td>RAM-internal</td>
+<td>CTAM-internal</td>
 <td>(none — populated by sync job)</td>
 </tr>
 </tbody>
 </table>
 <hr />
 <h2 id="column-mappings">3. Column mappings</h2>
-<p>For every mapping table below: - <strong>RAM column</strong> — column
-name in the RAM database. - <strong>Type</strong> — proposed RAM column
-type (Postgres-flavoured; adjust to RAM’s chosen DBMS). - <strong>PK /
-FK</strong> — primary key / foreign key designation. - <strong>Source
-attribute</strong> — the attribute name in the source API response (or
-the JHR table.column where the dictionary makes it explicit). -
-<strong>Notes / example</strong> — transformation, nullability,
-deprecation, example value.</p>
+<p>For every mapping table below: - <strong>CTAM column</strong> —
+column name in the CTAM database. - <strong>Type</strong> — proposed
+CTAM column type (Postgres-flavoured; adjust to CTAM’s chosen DBMS). -
+<strong>PK / FK</strong> — primary key / foreign key designation. -
+<strong>Source attribute</strong> — the attribute name in the source API
+response (or the JHR table.column where the dictionary makes it
+explicit). - <strong>Notes / example</strong> — transformation,
+nullability, deprecation, example value.</p>
 <h3 id="jo_people">3.1 <code>jo_people</code></h3>
 <blockquote>
 <p>Replicated from <code>/people</code>, <code>/leavers</code>,
@@ -364,7 +367,7 @@ deprecation, example value.</p>
 </colgroup>
 <thead>
 <tr>
-<th>RAM column</th>
+<th>CTAM column</th>
 <th>Type</th>
 <th>Key</th>
 <th>Source attribute (per state)</th>
@@ -527,7 +530,7 @@ key — eJ may reassign it. Null for <code>deleted</code>.</td>
 <code>authorisations_with_dates[]</code>) are <strong>not</strong>
 columns on <code>jo_people</code> — they each land in their own table,
 linked back via <code>personal_code</code>.
-<code>authorisations_current[]</code> is not synced — RAM derives
+<code>authorisations_current[]</code> is not synced — CTAM derives
 current authorisations internally from
 <code>jo_authorisations_with_dates</code>.</p>
 <h3 id="jo_appointments">3.2 <code>jo_appointments</code></h3>
@@ -546,7 +549,7 @@ a role at a location, under a contract type.</p>
 </colgroup>
 <thead>
 <tr>
-<th>RAM column</th>
+<th>CTAM column</th>
 <th>Type</th>
 <th>Key</th>
 <th>Source attribute</th>
@@ -726,7 +729,7 @@ appointment).</p>
 </colgroup>
 <thead>
 <tr>
-<th>RAM column</th>
+<th>CTAM column</th>
 <th>Type</th>
 <th>Key</th>
 <th>Source attribute</th>
@@ -795,7 +798,7 @@ ticket the person has been authorised on (current and historic).</p>
 </colgroup>
 <thead>
 <tr>
-<th>RAM column</th>
+<th>CTAM column</th>
 <th>Type</th>
 <th>Key</th>
 <th>Source attribute</th>
@@ -842,7 +845,7 @@ may be null.</td>
 <td>Normally FK → <code>jo_jurisdictions.id</code>. <strong>When
 <code>jurisdiction = &#39;Courts&#39;</code></strong> → FK →
 <code>jo_ticket_categories.id</code> (this is the source’s documented
-behaviour, not a RAM transformation).</td>
+behaviour, not a CTAM transformation).</td>
 </tr>
 <tr>
 <td><code>ticket</code></td>
@@ -891,7 +894,7 @@ behaviour, not a RAM transformation).</td>
 </colgroup>
 <thead>
 <tr>
-<th>RAM column</th>
+<th>CTAM column</th>
 <th>Type</th>
 <th>Key</th>
 <th>Source attribute</th>
@@ -959,7 +962,7 @@ Referenced by <code>jo_appointments.base_location_id</code>.</p>
 </colgroup>
 <thead>
 <tr>
-<th>RAM column</th>
+<th>CTAM column</th>
 <th>Type</th>
 <th>Key</th>
 <th>Source attribute</th>
@@ -1055,7 +1058,7 @@ That <code>jo_locations</code> row is the chamber (see §1.7).</p>
 </colgroup>
 <thead>
 <tr>
-<th>RAM column</th>
+<th>CTAM column</th>
 <th>Type</th>
 <th>Key</th>
 <th>Source attribute</th>
@@ -1130,7 +1133,7 @@ That <code>jo_locations</code> row is the chamber (see §1.7).</p>
 </colgroup>
 <thead>
 <tr>
-<th>RAM column</th>
+<th>CTAM column</th>
 <th>Type</th>
 <th>Key</th>
 <th>Source attribute</th>
@@ -1201,7 +1204,7 @@ That <code>jo_locations</code> row is the chamber (see §1.7).</p>
 </colgroup>
 <thead>
 <tr>
-<th>RAM column</th>
+<th>CTAM column</th>
 <th>Type</th>
 <th>Key</th>
 <th>Source attribute</th>
@@ -1269,7 +1272,7 @@ location-related tables.</p>
 </colgroup>
 <thead>
 <tr>
-<th>RAM column</th>
+<th>CTAM column</th>
 <th>Type</th>
 <th>Key</th>
 <th>Source attribute</th>
@@ -1339,7 +1342,7 @@ hierarchy). <code>jo_base_locations</code> is a subset of this
 </colgroup>
 <thead>
 <tr>
-<th>RAM column</th>
+<th>CTAM column</th>
 <th>Type</th>
 <th>Key</th>
 <th>Source attribute</th>
@@ -1431,7 +1434,7 @@ Coroners.</td>
 </colgroup>
 <thead>
 <tr>
-<th>RAM column</th>
+<th>CTAM column</th>
 <th>Type</th>
 <th>Key</th>
 <th>Source attribute</th>
@@ -1514,7 +1517,7 @@ by <code>jo_authorisations_with_dates.ticket_id</code>.</p>
 </colgroup>
 <thead>
 <tr>
-<th>RAM column</th>
+<th>CTAM column</th>
 <th>Type</th>
 <th>Key</th>
 <th>Source attribute</th>
@@ -1592,7 +1595,7 @@ by <code>jo_authorisations_with_dates.ticket_id</code>.</p>
 </colgroup>
 <thead>
 <tr>
-<th>RAM column</th>
+<th>CTAM column</th>
 <th>Type</th>
 <th>Key</th>
 <th>Source attribute</th>
@@ -1683,7 +1686,7 @@ by <code>jo_authorisations_with_dates.ticket_id</code>.</p>
 </colgroup>
 <thead>
 <tr>
-<th>RAM column</th>
+<th>CTAM column</th>
 <th>Type</th>
 <th>Key</th>
 <th>Source attribute</th>
@@ -1751,10 +1754,10 @@ by <code>jo_authorisations_with_dates.ticket_id</code>.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="jo_sync_status-ram-internal-no-source-mapping">3.16
-<code>jo_sync_status</code> (RAM-internal, no source mapping)</h3>
+<h3 id="jo_sync_status-ctam-internal-no-source-mapping">3.16
+<code>jo_sync_status</code> (CTAM-internal, no source mapping)</h3>
 <blockquote>
-<p>One row per source endpoint, maintained by the RAM ingestion job.
+<p>One row per source endpoint, maintained by the CTAM ingestion job.
 Holds the cursor used for incremental refresh and the outcome of the
 last run.</p>
 </blockquote>
@@ -1767,7 +1770,7 @@ last run.</p>
 </colgroup>
 <thead>
 <tr>
-<th>RAM column</th>
+<th>CTAM column</th>
 <th>Type</th>
 <th>Key</th>
 <th>Notes</th>
@@ -1841,7 +1844,7 @@ null out PII columns per source rule.</li>
 <li>On receipt of a <code>/deleted</code> record: set
 <code>jo_people.status=&#39;deleted&#39;</code>, populate
 <code>deleted_on</code>, null out everything else (soft tombstone for
-downstream RAM consumers).</li>
+downstream CTAM consumers).</li>
 <li><strong><code>personal_code</code> is the only safe matching
 key</strong> — never match on <code>id</code> (AD object id) or
 <code>email</code>, both of which the source warns can change or be
@@ -1851,9 +1854,9 @@ reused.</li>
 <h2 id="data-warnings">5. Data warnings</h2>
 <p>The following warnings describe known limitations of the eLinks
 source data and API that affect freshness, completeness, and reliability
-of data in RAM. These are characteristics of the source — not defects in
-the sync implementation — and must be understood by anyone building on
-or consuming RAM data.</p>
+of data in CTAM. These are characteristics of the source — not defects
+in the sync implementation — and must be understood by anyone building
+on or consuming CTAM data.</p>
 <table>
 <colgroup>
 <col style="width: 25%" />
@@ -1866,7 +1869,7 @@ or consuming RAM data.</p>
 <th>#</th>
 <th>Warning</th>
 <th>Affected fields</th>
-<th>RAM’s behaviour</th>
+<th>CTAM’s behaviour</th>
 </tr>
 </thead>
 <tbody>
@@ -1880,7 +1883,7 @@ updated by eLinks</strong></td>
 <code>location</code>, <code>base_location</code>,
 <code>base_location_id</code></td>
 <td>Replicate faithfully but treat as appointment-creation snapshot
-only. RAM must not use these fields to infer where a JOH is currently
+only. CTAM must not use these fields to infer where a JOH is currently
 working. Expose sync timestamp so consumers know the as-at date.</td>
 </tr>
 <tr>
@@ -1889,8 +1892,8 @@ working. Expose sync timestamp so consumers know the as-at date.</td>
 <code>/leavers</code> feed</strong></td>
 <td><code>jo_people.status</code></td>
 <td>Treat <code>status = &#39;active&#39;</code> as “active according to last
-eLinks sync”, not a definitive guarantee. As a compensating control, RAM
-should flag appointments whose <code>end_date</code> has passed but
+eLinks sync”, not a definitive guarantee. As a compensating control,
+CTAM should flag appointments whose <code>end_date</code> has passed but
 whose owner is still <code>active</code>, surfacing them for manual
 review.</td>
 </tr>
@@ -1919,7 +1922,7 @@ cycles</strong> as appointments are created or expire</td>
 <td><code>jo_appointments.is_principal</code></td>
 <td>Treat <code>is_principal = true</code> as accurate as-at the last
 sync timestamp only. Consumers must not cache or independently persist
-this flag outside of RAM’s own data.</td>
+this flag outside of CTAM’s own data.</td>
 </tr>
 <tr>
 <td>W6</td>
@@ -1960,7 +1963,7 @@ change without formal notification</td>
 <td>Whole integration</td>
 <td>Establish a periodic review cadence against the eLinks Swagger
 documentation. Changes to the spec may require updates to sync logic,
-RAM schema, and this mapping document.</td>
+CTAM schema, and this mapping document.</td>
 </tr>
 </tbody>
 </table>

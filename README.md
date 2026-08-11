@@ -1,12 +1,12 @@
-# RAM Architecture
+# CTAM Architecture
 
-Architectural artefacts for the **RAM (Resource Allocation Manager)** project.
+Architectural artefacts for the **CTAM (Court and Tribunals Availability Management)** project.
 
 > **Work in Progress** — these artefacts are evolving and not yet ratified. Please consult the author before using any of them for consumption or downstream decisions.
 
 ## Delivery
 
-RAM will be delivered in stages. The initial stage focuses on Tribunals, with requirements considered in the following order:
+CTAM will be delivered in stages. The initial stage focuses on Tribunals, with requirements considered in the following order:
 
 1. **SSCS**
 2. **ET**
@@ -23,14 +23,14 @@ ram-architecture/
 ├── architecture/                     PROGRAM-LEVEL architecture
 │   ├── asis/SSCS/                    As-is artefacts (per jurisdiction)
 │   └── tobe/                         To-be architecture
-│       ├── ram-architecture.c4       LikeC4 source model
+│       ├── ctam-architecture.c4      LikeC4 source model
 │       └── diagrams/                 Rendered LikeC4 PNGs
 │
 └── docs/                             DETAILED design docs
     └── integrations/
         ├── jo/                       JO (eLinks) integration
         │   ├── jo-er-diagram.md      ER diagram narrative
-        │   ├── jo-schema-mapping.md  Column-level source→RAM mapping
+        │   ├── jo-schema-mapping.md  Column-level source→CTAM mapping
         │   ├── diagrams/             PlantUML source + rendered PNGs
         │   └── confluence/           Confluence-ready HTML exports
         └── mrd/                      (placeholder for next integration)
