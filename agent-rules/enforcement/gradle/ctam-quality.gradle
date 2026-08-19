@@ -1,0 +1,165 @@
+// CTAM quality gate — Gradle Groovy DSL, per conventions.md (Groovy DSL + Wrapper).
+//
+// Install (scaffolding step, once per service repo):
+//
+//   1. copy this file to           gradle/ctam-quality.gradle
+//   2. copy the Checkstyle configs to   config/checkstyle/
+//   3. copy the fitness functions to    src/test/java/uk/gov/hmcts/ctam/
+//   4. in build.gradle add:
+//
+//        plugins {
+//          id 'com.diffplug.spotless'   version '8.10.0'
+//          id 'info.solidsoft.pitest'   version '1.19.0'
+//          // 'checkstyle' and 'jacoco' are core Gradle plugins, applied below
+//        }
+//
+//        dependencies {
+//          testImplementation 'com.tngtech.archunit:archunit-junit5:1.5.0'
+//        }
+//
+//        apply from: "$rootDir/gradle/ctam-quality.gradle"
+//
+// Versions verified 2026-08-19 (see agent-rules/index.md -> Provenance). Re-verify at scaffold
+// time and against the Spring Boot BOM — never recall a version (R7).
+//
+// Changing a threshold here is a rule change (R9): Sprint Change Proposal first, then a new
+// context-bus version. Not a local edit to get a build green.
+
+apply plugin: 'checkstyle'
+apply plugin: 'jacoco'
+
+ext {
+    // Where the coverage and mutation floors apply — the code that holds behaviour.
+    ctamMeasuredPackages = ['uk.gov.hmcts.ctam.*.service', 'uk.gov.hmcts.ctam.*.domain']
+    // Wiring, transport shapes and generated code: excluded from all measurement (T16).
+    ctamAnalysisExclusions = ['**/config/**', '**/dto/**', '**/*Application*', '**/generated/**']
+}
+
+// ----------------------------------------------------------------- formatting (Spotless)
+//
+// Formatting only. No structural opinions live here — that is Checkstyle's job.
+// Deliberately no formatter engine (google-java-format / palantir): the HMCTS Crime template
+// sets no house style, and imposing one would rewrite every scaffolded file. Adopting an engine
+// later is a one-line change plus one bulk-format commit, via SCP.
+
+spotless {
+    java {
+        target 'src/**/*.java'
+        targetExclude '**/generated/**'
+        removeUnusedImports()
+        importOrder 'java', 'jakarta', 'javax', '', 'uk.gov.hmcts'
+        trimTrailingWhitespace()
+        endWithNewline()
+        toggleOffOn()
+    }
+    format 'misc', {
+        target '**/*.yml', '**/*.yaml', '**/*.md', '**/*.sql'
+        targetExclude '**/build/**', '**/generated/**'
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+}
+
+// ----------------------------------------------------------------- structure (Checkstyle)
+
+checkstyle {
+    toolVersion = '14.0.0'
+    configDirectory = file("$rootDir/config/checkstyle")
+    configFile = file("$rootDir/config/checkstyle/checkstyle-ctam.xml")
+    maxWarnings = 0
+    maxErrors = 0
+    ignoreFailures = false
+}
+
+// ----------------------------------------------------------------- coverage (JaCoCo)
+
+jacoco {
+    toolVersion = '0.8.14' // first release with official Java 25 support
+}
+
+tasks.named('jacocoTestReport') {
+    dependsOn tasks.named('test')
+    reports {
+        xml.required = true
+        html.required = true
+    }
+    classDirectories.setFrom(
+        files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: ctamAnalysisExclusions)
+        })
+    )
+}
+
+tasks.named('jacocoTestCoverageVerification') {
+    dependsOn tasks.named('jacocoTestReport')
+    violationRules {
+        // element = PACKAGE means EVERY measured package must clear the floor — a well-covered
+        // package cannot subsidise a bare one.
+        rule {
+            element = 'PACKAGE'
+            includes = ctamMeasuredPackages
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.85
+            }
+            limit {
+                counter = 'BRANCH'
+                value = 'COVEREDRATIO'
+                minimum = 0.75
+            }
+        }
+    }
+}
+
+// ----------------------------------------------------------------- mutation (PIT)
+//
+// The honest test-quality number (T16): a surviving mutant is a specific statement your tests
+// do not actually check. Not wired into `check` — PIT is roughly an order of magnitude slower
+// than the test suite, so it runs in the pre-handoff gate and in CI, not on every build.
+
+pitest {
+    pitestVersion = '1.25.9'          // Java 25 mutator fixes landed in 1.25.8
+    junit5PluginVersion = '1.2.3'
+    targetClasses = ['uk.gov.hmcts.ctam.*.service.*', 'uk.gov.hmcts.ctam.*.domain.*']
+    targetTests = ['uk.gov.hmcts.ctam.*']
+    excludedClasses = ['uk.gov.hmcts.ctam.*.config.*', 'uk.gov.hmcts.ctam.*.dto.*']
+    // Container-backed tests are excluded: mutating against a real database is impractically
+    // slow and the mutants it would kill belong to unit-level behaviour anyway.
+    excludedTestClasses = ['*IT', '*FitnessTest']
+    mutationThreshold = 70
+    coverageThreshold = 0            // JaCoCo owns the coverage floor; PIT owns mutation
+    timestampedReports = false
+    threads = 4
+    outputFormats = ['HTML', 'XML']
+}
+
+// ----------------------------------------------------------------- resource-level prohibitions
+//
+// Things Checkstyle and ArchUnit cannot see: YAML, SQL, Helm values, build files.
+
+tasks.register('forbiddenPatterns', Exec) {
+    description = 'Scans non-Java sources for prohibited patterns (S-series, P-series).'
+    group = 'verification'
+    commandLine 'bash', "$rootDir/scripts/forbidden-patterns.sh"
+}
+
+// ----------------------------------------------------------------- wiring
+
+tasks.named('check') {
+    dependsOn tasks.named('jacocoTestCoverageVerification')
+    dependsOn tasks.named('forbiddenPatterns')
+}
+
+tasks.register('qualityGate') {
+    description = 'The full pre-handoff gate (Q3). Slower than `check` — includes mutation testing.'
+    group = 'verification'
+    dependsOn 'spotlessCheck',
+              'checkstyleMain',
+              'checkstyleTest',
+              'test',
+              'jacocoTestCoverageVerification',
+              'forbiddenPatterns',
+              'pitest',
+              'cyclonedxBom'
+}

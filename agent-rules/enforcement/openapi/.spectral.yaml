@@ -1,0 +1,123 @@
+# CTAM OpenAPI ruleset — lints the Swagger-Core-generated spec against conventions.md.
+#
+# Install: copy to the service repo root as .spectral.yaml. Run via scripts/verify.sh.
+#
+# A Spectral failure is a convention breach in your controller or DTO, not a linter to be
+# configured around (C3). Editing this file to pass is a rule change (R9).
+#
+# Scaffold note: this ruleset has not been executed against a generated CTAM spec. The first
+# scaffolding story must run `spectral lint --ruleset .spectral.yaml <spec>` and correct any
+# JSONPath or function-option drift, then report the correction back to the bus.
+
+extends:
+  - [spectral:oas, recommended]
+
+rules:
+  # --- conventions.md -> Naming Patterns: versioning prefix -----------------------------
+  ctam-path-version-prefix:
+    description: Every path is under an explicit major-version prefix (/v1/, /v2/…).
+    message: '{{property}} must start with a version prefix, e.g. /v1/'
+    severity: error
+    given: $.paths
+    then:
+      field: '@key'
+      function: pattern
+      functionOptions:
+        match: '^/v[0-9]+/'
+
+  # --- conventions.md -> Naming Patterns: plural-noun resources -------------------------
+  ctam-no-rpc-style-paths:
+    description: >
+      Paths are resources, not operations. Verb-shaped segments (process, create, get, update,
+      delete, execute, calculate) are RPC routes — use a resource plus an action segment.
+    message: '{{property}} looks like an RPC route, not a resource path'
+    severity: error
+    given: $.paths
+    then:
+      field: '@key'
+      function: pattern
+      functionOptions:
+        notMatch: '/(process|create|get|fetch|update|delete|remove|execute|perform|calculate|do)[A-Z]'
+
+  # --- conventions.md -> Format Patterns: JSON field naming -----------------------------
+  ctam-camelcase-schema-properties:
+    description: JSON field names are camelCase (never snake_case).
+    message: '{{property}} must be camelCase'
+    severity: error
+    given: $..[?(@.type == 'object' && @.properties)].properties
+    then:
+      field: '@key'
+      function: pattern
+      functionOptions:
+        match: '^[a-z][a-zA-Z0-9]*$'
+
+  ctam-camelcase-parameters:
+    description: Path variables and query parameters are camelCase.
+    message: 'parameter "{{value}}" must be camelCase'
+    severity: error
+    given: $.paths[*][*].parameters[?(@.in == 'query' || @.in == 'path')].name
+    then:
+      function: pattern
+      functionOptions:
+        match: '^[a-z][a-zA-Z0-9]*$'
+
+  # --- conventions.md -> Naming Patterns: RFC 6648, no X- prefix ------------------------
+  ctam-no-x-prefixed-headers:
+    description: Header names are Title-Kebab-Case with no X- prefix (RFC 6648).
+    message: 'header "{{value}}" must not use the deprecated X- prefix'
+    severity: error
+    given: $.paths[*][*].parameters[?(@.in == 'header')].name
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: '^[Xx]-'
+
+  # --- conventions.md -> API response envelope: RFC 9457 --------------------------------
+  ctam-problem-json-for-errors:
+    description: 4xx and 5xx responses use application/problem+json (RFC 9457).
+    message: 'error response {{property}} must be application/problem+json'
+    severity: error
+    given: $.paths[*][*].responses[?(@property.match(/^[45]/))].content
+    then:
+      field: 'application/problem+json'
+      function: truthy
+
+  ctam-no-success-envelope:
+    description: >
+      Success responses are the bare resource representation. A { data, error } wrapper is
+      prohibited (conventions.md -> Anti-patterns).
+    message: 'success response must not wrap the resource in a data/error envelope'
+    severity: error
+    given: $.paths[*][*].responses[?(@property.match(/^2/))].content[*].schema.properties
+    then:
+      field: '@key'
+      function: pattern
+      functionOptions:
+        notMatch: '^(data|error|errors|payload|result)$'
+
+  # --- every operation is documented and traceable --------------------------------------
+  ctam-operation-has-summary:
+    description: Every operation carries a summary — it becomes the consumer's documentation.
+    severity: error
+    given: $.paths[*][?(@property != 'parameters')]
+    then:
+      field: summary
+      function: truthy
+
+  ctam-operation-declares-error-responses:
+    description: >
+      Every operation declares at least one 4xx response. An operation that documents only its
+      happy path leaves consumers to discover failures in production (C6).
+    severity: error
+    given: $.paths[*][?(@property != 'parameters')].responses
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          anyOf:
+            - required: ['400']
+            - required: ['403']
+            - required: ['404']
+            - required: ['409']
+            - required: ['422']

@@ -1,0 +1,146 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+<!--
+  CTAM structural gate. Checkstyle 14.0.0.
+
+  Scope: SIZE and COMPLEXITY inside a file, plus a few textual prohibitions.
+    - Formatting is Spotless's job. Do not add formatting checks here.
+    - Relationships between types are ArchUnit's job (ArchitectureFitnessTest).
+  Every module below enforces a numbered rule from _arch/agent-rules/. Adding,
+  relaxing, or removing one requires a Sprint Change Proposal (R9) — not a local edit.
+-->
+<module name="Checker">
+  <property name="severity" value="error"/>
+  <property name="charset" value="UTF-8"/>
+  <property name="fileExtensions" value="java"/>
+
+  <!-- M2: file length. One public type per file (OneTopLevelClass) makes this a class-size
+       limit. Counts every line including imports and comments — deliberately stricter. -->
+  <module name="FileLength">
+    <property name="max" value="300"/>
+  </module>
+
+  <module name="FileTabCharacter"/>
+  <module name="NewlineAtEndOfFile"/>
+
+  <module name="SuppressionFilter">
+    <property name="file" value="${config_loc}/checkstyle-suppressions.xml"/>
+  </module>
+
+  <module name="TreeWalker">
+
+    <!-- ============================ size and complexity ============================ -->
+
+    <!-- M1: a method you cannot see at once, you cannot reason about. -->
+    <module name="MethodLength">
+      <property name="max" value="30"/>
+      <property name="countEmpty" value="false"/>
+    </module>
+
+    <!-- M3: 5+ parameters (or 5+ injected collaborators) means more than one responsibility. -->
+    <module name="ParameterNumber">
+      <property name="max" value="4"/>
+      <property name="tokens" value="METHOD_DEF, CTOR_DEF"/>
+    </module>
+
+    <!-- M4: each branch is a test case. -->
+    <module name="CyclomaticComplexity">
+      <property name="max" value="8"/>
+    </module>
+
+    <!-- M5: deep nesting hides the happy path. Use guard clauses. -->
+    <module name="NestedIfDepth">
+      <property name="max" value="3"/>
+    </module>
+    <module name="NestedForDepth">
+      <property name="max" value="2"/>
+    </module>
+    <module name="NestedTryDepth">
+      <property name="max" value="1"/>
+    </module>
+
+    <!-- M7 -->
+    <module name="OneTopLevelClass"/>
+
+    <!-- M23: a class with a long public surface is a package pretending to be a class. -->
+    <module name="MethodCount">
+      <property name="maxPublic" value="10"/>
+      <property name="maxTotal" value="20"/>
+    </module>
+
+    <!-- M23: too many collaborating types is the same smell seen from outside. -->
+    <module name="ClassFanOutComplexity">
+      <property name="max" value="20"/>
+    </module>
+
+    <!-- ============================ correctness guards ============================ -->
+
+    <module name="EqualsHashCode"/>
+    <module name="MissingSwitchDefault"/>
+    <module name="NeedBraces"/>
+    <module name="EmptyCatchBlock">
+      <property name="exceptionVariableName" value="expected|ignored"/>
+    </module>
+    <module name="UnusedImports"/>
+    <module name="RedundantImport"/>
+    <module name="IllegalImport"/>
+    <module name="FinalClass"/>
+    <module name="VisibilityModifier">
+      <property name="protectedAllowed" value="false"/>
+      <property name="packageAllowed" value="false"/>
+    </module>
+
+    <!-- C7: only the @ControllerAdvice in error/ catches broadly (see suppressions). -->
+    <module name="IllegalCatch">
+      <property name="illegalClassNames" value="java.lang.Exception, java.lang.Throwable, java.lang.RuntimeException"/>
+    </module>
+
+    <!-- Unexplained constants are the cheapest maintainability debt to avoid. -->
+    <module name="MagicNumber">
+      <property name="ignoreNumbers" value="-1, 0, 1, 2"/>
+      <property name="ignoreAnnotation" value="true"/>
+      <property name="ignoreFieldDeclaration" value="false"/>
+    </module>
+
+    <!-- ============================ absolute prohibitions ============================ -->
+
+    <!-- R8: nothing unfinished ships. There is no suppression for this anywhere. -->
+    <module name="TodoComment">
+      <property name="format" value="(TODO)|(FIXME)|(XXX)|(HACK)|(WIP)"/>
+      <property name="severity" value="error"/>
+    </module>
+
+    <!-- S5 -->
+    <module name="RegexpSinglelineJava">
+      <property name="id" value="ctamNoConsoleOutput"/>
+      <property name="format" value="System\s*\.\s*(out|err)\s*\."/>
+      <property name="message" value="S5: use SLF4J, not System.out/System.err"/>
+      <property name="ignoreComments" value="true"/>
+    </module>
+    <module name="RegexpSinglelineJava">
+      <property name="id" value="ctamNoPrintStackTrace"/>
+      <property name="format" value="\.printStackTrace\s*\("/>
+      <property name="message" value="S5: log the exception through SLF4J, never printStackTrace()"/>
+      <property name="ignoreComments" value="true"/>
+    </module>
+
+    <!-- T15: a disabled test is an unanswered question, not a skip. -->
+    <module name="RegexpSinglelineJava">
+      <property name="id" value="ctamNoDisabledTests"/>
+      <property name="format" value="@(Disabled|Ignore)\b"/>
+      <property name="message" value="T15: never disable a test — raise it as an Open Question (R5)"/>
+      <property name="ignoreComments" value="false"/>
+    </module>
+
+    <!-- S8: there is no acceptable reason to disable certificate validation. -->
+    <module name="RegexpSinglelineJava">
+      <property name="id" value="ctamNoTrustAll"/>
+      <property name="format" value="(trustAll|TrustAllCerts|NoopHostnameVerifier|ALLOW_ALL_HOSTNAME_VERIFIER|setHostnameVerifier\s*\(\s*\(\s*hostname)"/>
+      <property name="message" value="S8: TLS verification must never be disabled, in any profile"/>
+      <property name="ignoreComments" value="true"/>
+    </module>
+
+  </module>
+</module>

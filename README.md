@@ -12,19 +12,48 @@ CTAM will be delivered in stages. The initial stage focuses on Tribunals, with r
 2. **SSCS**
 3. **IAC**
 
+## What this repository is
+
+This is the CTAM Pathfinder **context bus**. Two kinds of content live here, and the difference matters:
+
+- **`agent-rules/` is authored here.** The binding *how-we-work* contract every Java service repo
+  consumes — TDD discipline, modularity limits, uncertainty protocol, definition of done, plus a
+  runnable enforcement pack. Change it here.
+- **The rest of the prose is a published mirror.** `architecture.md`, `architecture-summary.md`,
+  `architecture/*.md` and `prd.md` are copies of the canonical planning artefacts in `ctam-analysis`,
+  produced by `ctam-analysis/scripts/publish-arch.sh`. **Never hand-edit them** — see
+  [`architecture/PUBLISHED.md`](./architecture/PUBLISHED.md). The `asis/` and `tobe/` subtrees and
+  everything under `docs/` and `input-docs/` are authored here as before.
+
+Service repos embed this repository as a submodule at `_arch/`, pinned to an exact `arch-vN` tag, and
+adopt a new version only by a deliberate bump. See
+[`architecture/delivery-operating-model.md`](./architecture/delivery-operating-model.md).
+
 ## Folder structure
 
 ```
-ram-architecture/
-├── input-docs/                       Raw inputs from source systems (PDFs, etc.)
-│   ├── jo/                           Judicial Office / eLinks source docs
-│   └── mrd/                          MRD source docs
+ctam-architecture/
+├── agent-rules/                      THE AGENT DELIVERY CONTRACT — authored here, not a mirror
+│   ├── index.md                      how-we-work rules: R/T/M/C/P/S/W/Q series
+│   ├── 00-core.md … 90-definition-of-done.md
+│   └── enforcement/                  ArchUnit, Checkstyle, Gradle gate, Spectral, hooks, verify.sh
 │
+├── architecture.md                   published mirror — canonical architecture index
+├── architecture-summary.md           published mirror
+├── prd.md                            published mirror
 ├── architecture/                     PROGRAM-LEVEL architecture
+│   ├── PUBLISHED.md                  ← read before editing anything mirrored
+│   ├── conventions.md · data-tables.md · gaps.md · assumptions.md · changelog.md
+│   ├── delivery-operating-model.md · repo-structure.md · repository-strategy.md
+│   ├── starter-template.md · user-types.md · FR/NFR coverage        (all mirrors)
 │   ├── asis/SSCS/                    As-is artefacts (per jurisdiction)
 │   └── tobe/                         To-be architecture
 │       ├── ctam-architecture.c4      LikeC4 source model
 │       └── diagrams/                 Rendered LikeC4 PNGs
+│
+├── input-docs/                       Raw inputs from source systems (PDFs, etc.)
+│   ├── jo/                           Judicial Office / eLinks source docs
+│   └── mrd/                          MRD source docs
 │
 └── docs/                             DETAILED design docs
     └── integrations/

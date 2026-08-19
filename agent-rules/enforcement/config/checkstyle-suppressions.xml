@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+    "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+    "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+<!--
+  The ONLY sanctioned suppressions. Each one is documented in
+  _arch/agent-rules/20-modularity.md -> "Documented exemptions".
+
+  Adding an entry here is a rule change (R9): it needs a Sprint Change Proposal
+  in the control plane and a new context-bus version. A suppression added to make
+  a build pass is a prohibited workaround, not a fix.
+-->
+<suppressions>
+
+  <!-- Test size is governed by "one behaviour per test" (T5) and review, not by counting:
+       a data-heavy parameterised test is legitimately long, and fixture values are not
+       magic numbers. Every other check still applies to tests. -->
+  <suppress files="[\\/]src[\\/]test[\\/].*(Test|IT)\.java$"
+            checks="FileLength|MethodLength|MagicNumber|MethodCount|ClassFanOutComplexity"/>
+
+  <!-- The RFC 9457 @ControllerAdvice catch-all is required by conventions.md.
+       It is the one place in the service allowed to catch Exception. -->
+  <suppress files="[\\/]error[\\/].*\.java$" checks="IllegalCatch"/>
+
+  <!-- Generated sources are never hand-edited, so analysing them tells us nothing. -->
+  <suppress files="[\\/]generated[\\/]" checks=".*"/>
+  <suppress files="[\\/]build[\\/]" checks=".*"/>
+
+</suppressions>
