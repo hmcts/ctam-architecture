@@ -1,13 +1,13 @@
 # CTAM — Integration Design Document (High Level)
 
-> **Status:** v0.1 DRAFT — not yet ratified. Aligns with system context diagram revision **v0.1D (Draft)**.
+> **Status:** v0.3 DRAFT — not yet ratified. Aligns with system context diagram revision **v0.2D (Draft)**.
 > Not to be used for downstream decisions until ratified (see [Document control](#document-control)).
 
 | | |
 |---|---|
 | **Document owner** | _[Placeholder: name / role]_ |
 | **Author(s)** | _[Placeholder]_ |
-| **Last updated** | 2026-06-16 |
+| **Last updated** | 2026-08-11 |
 | **Related model** | [`architecture/tobe/ctam-architecture.c4`](../../architecture/tobe/ctam-architecture.c4) (LikeC4 source) |
 
 ---
@@ -19,6 +19,8 @@
 | Version | Date | Author | Summary |
 |---|---|---|---|
 | v0.1 | 2026-06-16 | _[Placeholder]_ | Initial high-level draft. |
+| v0.2 | 2026-08-11 | _[Placeholder]_ | JOH Data Reader now persists synced JOH data **directly** to the CTAM Database instead of routing through JOH Management API. To preserve operational-user edits made via the UI, the CTAM Database is split into **JO-Owned Data** (bulk sync from source, written by JOH Data Reader) and **CTAM-Owned Data** (the UI-editable subset, written and read by JOH Management API) — CTAM-Owned Data always takes precedence on read. |
+| v0.3 | 2026-08-11 | _[Placeholder]_ | Corrected Tribunal delivery order: **ET is Phase 1**, not SSCS. Sub-jurisdiction delivery order updated to **ET → SSCS → IAC** throughout. ET-specific user groups, business processes, and as-is baseline are not yet modelled (currently only SSCS has as-is artefacts and a dedicated actor in the LikeC4 model) — tracked as an open item, see §7. |
 
 ### Approvals / sign-off
 
@@ -49,7 +51,7 @@ From a product perspective, CTAM:
 - supports **fee / payment** data extraction for finance teams; and
 - **exposes JOH availability** to external client systems (e.g. which JOH is sitting at which location on a given day).
 
-Confirming a sitting in CTAM is the event that enables a JOH to be **paid**. CTAM is delivered in stages, beginning with **SSCS**, the first Tribunal sub-jurisdiction (see §2).
+Confirming a sitting in CTAM is the event that enables a JOH to be **paid**. CTAM is delivered in stages, beginning with **ET**, the first Tribunal sub-jurisdiction (see §2).
 
 ---
 
@@ -77,22 +79,23 @@ This document describes, **at a high level**, the integrations between CTAM and 
 
 ## 2. Delivery context
 
-CTAM is delivered in stages, **Tribunals first**. Within Tribunals, the sub-jurisdictions are delivered in the order **SSCS → ET → IAC**. **Phase 1 delivers SSCS** — the first Tribunal sub-jurisdiction. Integration availability and cadence may differ by phase / jurisdiction.
+CTAM is delivered in stages, **Tribunals first**. Within Tribunals, the sub-jurisdictions are delivered in the order **ET → SSCS → IAC**. **Phase 1 delivers ET** — the first Tribunal sub-jurisdiction. Integration availability and cadence may differ by phase / jurisdiction.
 
 > **TODO:**
-> - Define the later phases — how ET, IAC, Courts and Magistrates map to phase numbers.
+> - Define the later phases — how SSCS, IAC, Courts and Magistrates map to phase numbers.
 > - Note any integration that is specific to a later phase or jurisdiction.
 > - Record the current deployment / live state of each integration (none is yet confirmed live in production; see §6 Environments).
+> - **ET-specific detail is not yet modelled.** The LikeC4 model has an `SSCSAdmin` actor and SSCS-specific itinerary wording, and `architecture/asis/` only has as-is artefacts for SSCS — none for ET, even though ET is now Phase 1. No ET detail has been fabricated to fill this gap; see §7 item 9.
 
 ## 3. System context
 
-The high-level system context below is the primary overview of CTAM's external integrations and the source this document elaborates on (currently at draft revision v0.1D). It is generated from the LikeC4 model and should be regenerated when that model changes (see [References](#8-references)).
+The high-level system context below is the primary overview of CTAM's external integrations and the source this document elaborates on (currently at draft revision v0.2D). It is generated from the LikeC4 model and should be regenerated when that model changes (see [References](#8-references)).
 
 ![CTAM System Context](../../architecture/tobe/diagrams/systemContext.png)
 
-*Figure 1 — CTAM System Context (v0.1D Draft). Source: `architecture/tobe/diagrams/systemContext.png`.*
+*Figure 1 — CTAM System Context (v0.2D Draft). Source: `architecture/tobe/diagrams/systemContext.png`.*
 
-For the internal container/component view that these integrations connect into, see [`ctamContainers.png`](../../architecture/tobe/diagrams/ctamContainers.png).
+For the internal container/component view that these integrations connect into, see [`ctamContainers.png`](../../architecture/tobe/diagrams/ctamContainers.png) — this now also shows the JOH ingestion pipeline covered in §5.1 below.
 
 ## 4. Integration summary
 
@@ -101,7 +104,7 @@ For the internal container/component view that these integrations connect into, 
 | 1 | **JOH Source System (eLinks)** | Inbound | Supplies JOH personnel data | API (scheduled fetch) | _[Placeholder: phase]_ |
 | 2 | **MRD Source** | Inbound | Supplies the MRD dataset | Off-system delivery (manual) | _[Placeholder: phase]_ |
 | 3 | **Client systems** | Inbound | Consumes JOH availability (queries CTAM) | API (read-only, client-initiated) | _[Placeholder: phase]_ |
-| 4 | **Payment System** | Outbound | Consumes payment extract | Manual upload | Phase 1 (SSCS) — manual |
+| 4 | **Payment System** | Outbound | Consumes payment extract | Manual upload | Phase 1 (ET) — manual |
 | 5 | **Users ↔ CTAM UI** | Interactive | Manage sittings / view data | Web UI | _[Placeholder: phase]_ |
 
 > **Note on naming:** the system context model names the inbound personnel system **"Judicial Office Holder Source System"**. This document refers to it consistently as **"JOH Source System (eLinks)"** (backed by JHR — Judicial HR). They are the same external system.
@@ -112,13 +115,20 @@ Each integration is profiled against a standard set of attributes. Unknowns are 
 
 ### 5.1 JOH Source System (eLinks) — Inbound
 
-Supplies judicial office holder (JOH) personnel information. CTAM's **JOH Data Scheduler** fetches data via API and persists the raw payload to the **JOH Raw Payload Store**; the **JOH Data Reader** then reads the raw payload and sends personnel information to the **JOH Management API**, which persists it to the CTAM database.
+Supplies judicial office holder (JOH) personnel information. CTAM's **JOH Data Scheduler** fetches data via API and persists the raw payload to the **JOH Raw Payload Store**; the **JOH Data Reader** then reads the raw payload and persists JOH personnel information **directly to the CTAM Database** (bulk sync — no longer routed through JOH Management API).
+
+The CTAM Database's JOH data is split into two logical stores to keep this bulk sync from clobbering operational-user edits:
+
+- **JO-Owned Data** — the bulk of JOH fields, synced from source and written only by JOH Data Reader.
+- **CTAM-Owned Data** — a narrower, UI-editable subset of JOH fields, written by operational users via **JOH Management API**. **CTAM-Owned Data always takes precedence over JO-Owned Data on read** — it represents a deliberate operational override of source data.
+
+JOH Management API continues to serve **all reads** of JOH information (merging JO-Owned Data with any CTAM-Owned overrides) and remains the **only write path for the UI-editable subset** — it is no longer on the bulk sync write path.
 
 | Attribute | Value |
 |---|---|
 | Direction | Inbound (source → CTAM) |
-| Source → Target | JOH Source System (eLinks) → CTAM (JOH Data Scheduler → JOH Raw Payload Store → JOH Data Reader → JOH Management API → CTAM Database) |
-| Mechanism | Scheduled API fetch; raw-then-refined persistence |
+| Source → Target | JOH Source System (eLinks) → CTAM (JOH Data Scheduler → JOH Raw Payload Store → JOH Data Reader → CTAM Database: JO-Owned Data) |
+| Mechanism | Scheduled API fetch; raw-then-refined persistence; direct write to JO-Owned Data (bulk sync bypasses JOH Management API) |
 | Data domain | JOH personnel data (people, appointments, judiciary roles, authorisations, reference data) |
 | Format | JSON payload |
 | Frequency | _[Placeholder]_ — **TODO:** confirm schedule/cadence |
@@ -128,7 +138,9 @@ Supplies judicial office holder (JOH) personnel information. CTAM's **JOH Data S
 | Detailed design | [JOH Source System (eLinks) — ER diagram](./jo/jo-er-diagram.md) · [schema mapping](./jo/jo-schema-mapping.md) |
 | Phase / status | _[Placeholder]_ |
 
-> **TODO:** Confirm error handling, retry and incremental-vs-full sync behaviour (the schema includes a sync-status side table — see the detailed design).
+> **TODO:** Confirm error handling, retry and incremental-vs-full sync behaviour (the schema includes a sync-status side table — see the detailed design). With persistence now happening directly in JOH Data Reader, this component also owns any validation/dedup/upsert logic previously assumed to sit behind JOH Management API — confirm none of that logic is lost.
+>
+> **TODO:** Enumerate the exact field-level split between JO-Owned Data and CTAM-Owned Data (i.e. which JOH fields are operational-user-editable via the UI). This determines what JOH Data Reader must avoid overwriting.
 
 ### 5.2 MRD Source — Inbound
 
@@ -186,7 +198,7 @@ CTAM produces a payment data extract that is consumed by the external **Payment 
 | Security / auth | **TODO:** handling of payment data during manual transfer |
 | Counterparty owner | **TODO:** Payment System owning team contact |
 | Detailed design | _[Placeholder]_ |
-| Phase / status | **Phase 1 (SSCS) — manual.** _[Placeholder: target future-phase automation]_ |
+| Phase / status | **Phase 1 (ET) — manual.** _[Placeholder: target future-phase automation]_ |
 
 > **TODO:** Document the intended later-phase automated interface, if any.
 
@@ -197,7 +209,7 @@ User groups interact with CTAM through the **CTAM User Interface**, which calls 
 | Attribute | Value |
 |---|---|
 | Direction | Interactive (users ↔ CTAM UI) |
-| Jurisdictions & user groups | **Tribunals** (sub-jurisdictions: SSCS, ET, IAC) — e.g. Venue Clerk, SSCS Admin; **Courts** — Court Users, RSU Users; **Magistrates** — user types TBD; **Finance Users** — cross-cutting |
+| Jurisdictions & user groups | **Tribunals** (sub-jurisdictions: ET, SSCS, IAC) — e.g. Venue Clerk, SSCS Admin (ET-specific user groups not yet modelled — see §7 item 9); **Courts** — Court Users, RSU Users; **Magistrates** — user types TBD; **Finance Users** — cross-cutting |
 | Mechanism | Web UI over internal CTAM APIs |
 | Key interactions | Confirm sittings (enables JOH payment), establish itineraries, manage absences, read JOH information, extract payment data |
 | Authorisation | Jurisdiction + user-type resolved at login via Authorisation Management API |
@@ -230,6 +242,9 @@ High-level, integration-wide considerations. Detail to be completed by the relev
 | 4 | Define Payment System extract format and future automation | _[Placeholder]_ | Open |
 | 5 | Resolve Magistrates user types and integrations (TBD) | _[Placeholder]_ | Open |
 | 6 | Confirm scope: separate doc for Magistrates integrations? | _[Placeholder]_ | Open |
+| 7 | Enumerate the field-level split between JO-Owned Data and CTAM-Owned Data for JOH records | _[Placeholder]_ | Open |
+| 8 | Confirm JOH Data Reader owns validation/dedup/upsert logic for its direct write to JO-Owned Data (no longer behind JOH Management API) | _[Placeholder]_ | Open |
+| 9 | Model ET-specific user groups, itinerary/business processes, and as-is baseline now that ET is Phase 1 (currently only SSCS is represented in the LikeC4 model and `architecture/asis/`) | _[Placeholder]_ | Open |
 
 > **TODO:** Add/triage items as the integrations firm up.
 
@@ -256,7 +271,7 @@ High-level, integration-wide considerations. Detail to be completed by the relev
 | **MRD** | _[Placeholder: expand acronym + one-line definition]_ |
 | **HMCTS** | _[Placeholder: expand]_ |
 | **Tribunals / Courts / Magistrates** | The judicial jurisdictions CTAM serves (Magistrates TBD) |
-| **SSCS / ET / IAC** | Tribunal sub-jurisdictions, delivered in this order (SSCS first). _[Placeholder: expand each acronym]_ |
+| **ET / SSCS / IAC** | Tribunal sub-jurisdictions, delivered in this order (ET first). _[Placeholder: expand each acronym]_ |
 | **Sitting** | _[Placeholder: define — confirming a sitting enables JOH payment]_ |
 | **Panel member** | _[Placeholder: define; clarify relationship to JOH]_ |
 | **Itinerary** | _[Placeholder: define — forward plan allocating JOHs to venues]_ |

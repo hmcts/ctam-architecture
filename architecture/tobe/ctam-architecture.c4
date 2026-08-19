@@ -33,7 +33,7 @@
   }
 
   model {
-    versionNote = note 'v0.1D (Draft)' 'Diagram revision 0.1 — DRAFT. Subject to change; not yet approved.'
+    versionNote = note 'v0.2D (Draft)' 'Diagram revision 0.2 — DRAFT. Adds JO-Owned Data / CTAM-Owned Data split within the CTAM Database and a direct-persistence path for JOH Data Reader. Subject to change; not yet approved.'
 
     Users = actor 'Users' 'Users of the CTAM system across various user groups' {
       Tribunals = actor 'Tribunals' 'Tribunals jurisdiction' {
@@ -59,11 +59,14 @@
     CTAMSystem = system 'CTAM' 'Court and Tribunals Availability Management' {
       component JOHDataScheduler "JOH Data Scheduler" "Responsible for fetching data from JOH source system and persisting raw data to the database"
       component JOHRawStore "JOH Raw Payload Store" "The raw datastore"
-      component JOHDataReader "JOH Data Reader" "Reader responsible for reading raw data and sending personnel information to the JOH Management API"
-      component CtamDatabase "CTAM Database" "Persistent storage for CTAM data"
+      component JOHDataReader "JOH Data Reader" "Reader responsible for reading raw data and persisting JOH personnel information directly to JO-Owned Data (bulk sync from source)"
+      component CtamDatabase "CTAM Database" "Persistent storage for CTAM data" {
+        component JOOwnedData "JO-Owned Data" "JOH data synced from the source system (bulk path) — JO-specific entities: people, appointments, roles, authorisations, etc."
+        component CtamOwnedData "CTAM-Owned Data" "CTAM-specific overrides for the operational-user-editable subset of JOH fields. Always takes precedence over JO-Owned Data on read."
+      }
       component SittingManagementAPI "Sitting Management API" "API responsible for managing sittings data"
       component AbsenceManagementAPI "Absence Management API" "API responsible for managing absence workflows, including creating vacancies in response to absences so they can be filled by another JOH"
-      component JOHManagementAPI "JOH Management API" "API responsible for managing JOH information and persisting it to the database"
+      component JOHManagementAPI "JOH Management API" "API responsible for reading JOH information — merging JO-Owned Data with CTAM-Owned overrides, which always win — and persisting operational-user edits to CTAM-Owned Data"
       component AuthorisationManagementAPI "Authorisation Management API" "Resolves the logged-in user's jurisdiction(s) (Courts / Tribunals / Magistrates) and user type within each jurisdiction (e.g. Court User vs RSU User within Courts). The returned authorisation context drives which locations, JOH types, and other lookups are visible to the user in the UI."
       component AvailabilityAPI "Availability API" "Read-only API serving JOH availability data to external client systems — e.g. answers queries like which JOH is sitting at which location on a given day"
       component MRDDataConsumer "MRD Data Consumer" "Reads the MRD dataset (received off-system) and persists it in the CTAM database"
@@ -101,12 +104,14 @@
     CTAMSystem.JOHDataScheduler -> johSource 'fetches JOH data via API'
     CTAMSystem.JOHDataScheduler -> CTAMSystem.JOHRawStore 'persists raw JSON payload'
     CTAMSystem.JOHDataReader -> CTAMSystem.JOHRawStore 'reads persisted JSON'
-    CTAMSystem.JOHDataReader -> CTAMSystem.JOHManagementAPI 'sends JOH information'
-    CTAMSystem.JOHManagementAPI -> CTAMSystem.CtamDatabase 'persists JOH information'
+    CTAMSystem.JOHDataReader -> CTAMSystem.CtamDatabase.JOOwnedData 'persists JOH information directly (bulk sync from source)'
+    CTAMSystem.JOHManagementAPI -> CTAMSystem.CtamDatabase.JOOwnedData 'reads JOH information'
+    CTAMSystem.JOHManagementAPI -> CTAMSystem.CtamDatabase.CtamOwnedData 'reads CTAM overrides (always take precedence over JO-Owned Data)'
+    CTAMSystem.JOHManagementAPI -> CTAMSystem.CtamDatabase.CtamOwnedData 'persists operational-user edits to the editable subset (CTAM overrides)'
     CTAMSystem.AbsenceManagementAPI -> CTAMSystem.CtamDatabase 'persists absences and creates vacancies'
     CTAMSystem.CtamUI -> CTAMSystem.AbsenceManagementAPI 'manages absences'
     CTAMSystem.CtamUI -> CTAMSystem.SittingManagementAPI 'adds/updates sittings'
-    CTAMSystem.CtamUI -> CTAMSystem.JOHManagementAPI 'reads JOH information'
+    CTAMSystem.CtamUI -> CTAMSystem.JOHManagementAPI 'reads JOH information / updates editable subset (CTAM overrides)'
     CTAMSystem.CtamUI -> CTAMSystem.AuthorisationManagementAPI 'loads user authorisations and jurisdiction at login'
     CTAMSystem.AuthorisationManagementAPI -> CTAMSystem.CtamDatabase 'reads authorisation and jurisdiction data'
     CTAMSystem.SittingManagementAPI -> CTAMSystem.CtamDatabase 'persists sittings'
@@ -123,14 +128,15 @@
 
   views {
     view index {
-      title 'System Context — v0.1D (Draft)'
+      title 'System Context — v0.2D (Draft)'
       include *
     }
 
     view ctamContainers of CTAMSystem {
-      title 'CTAM - Containers — v0.1D (Draft)'
+      title 'CTAM - Containers — v0.2D (Draft)'
       include *
-      exclude CTAMSystem.WorkingPatternManagement
+      include CTAMSystem.CtamDatabase.*
+      exclude CTAMSystem.WorkingPatternManagement 
       exclude CTAMSystem.AbsenceManagement
       exclude CTAMSystem.VacancyManagement
       exclude CTAMSystem.JurisdictionSplit
@@ -141,7 +147,7 @@
     }
 
     view capabilityMap of CTAMSystem {
-      title 'CTAM Capabilities — v0.1D (Draft)'
+      title 'CTAM Capabilities — v0.2D (Draft)'
       include CTAMSystem.WorkingPatternManagement
       include CTAMSystem.AbsenceManagement
       include CTAMSystem.VacancyManagement
@@ -153,7 +159,7 @@
     }
 
     view capabilityMapDetailed of CTAMSystem {
-      title 'CTAM Capabilities — Detailed — v0.1D (Draft)'
+      title 'CTAM Capabilities — Detailed — v0.2D (Draft)'
       include CTAMSystem.WorkingPatternManagement, CTAMSystem.WorkingPatternManagement.*
       include CTAMSystem.AbsenceManagement,        CTAMSystem.AbsenceManagement.*
       include CTAMSystem.VacancyManagement,        CTAMSystem.VacancyManagement.*

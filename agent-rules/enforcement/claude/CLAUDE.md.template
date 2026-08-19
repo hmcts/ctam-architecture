@@ -1,0 +1,115 @@
+# CLAUDE.md — ctam-{{SERVICE_NAME}}
+
+> Generated from `_arch/agent-rules/enforcement/claude/CLAUDE.md.template` at scaffold time.
+> Context bus pinned at **{{ARCH_VERSION}}** (`_arch/` submodule). Substitute `{{SERVICE_NAME}}`
+> and `{{ARCH_VERSION}}`; change nothing else — this file is generated, and local edits are lost
+> on the next bus bump. Rule changes go through the control plane (see `_arch/agent-rules/index.md`).
+
+## What this repo is
+
+`ctam-{{SERVICE_NAME}}` is one **execution unit** of CTAM Pathfinder — HMCTS's Judicial Office
+Holder availability-and-scheduling platform. It is a single Spring Boot service with its own
+pipeline and release cadence. There is **no shared runtime library** in this programme: consistency
+comes from CI, ArchUnit, Spectral, Pact and review. Cross-service work goes through **API contracts,
+never shared code**.
+
+- **What to build** — `_arch/architecture/conventions.md` (naming, API shapes, formats),
+  `_arch/architecture/data-tables.md` (table ownership).
+- **How to work** — `_arch/agent-rules/` (the rules below are its always-on core).
+- **What to build now** — `docs/stories/<id>.md`, the story packet. Its Gherkin acceptance
+  criteria are your scope.
+
+## The fourteen non-negotiables
+
+| ID | Rule |
+|---|---|
+| **R1** | **Scope comes from the story.** Read the story packet before your first edit. Its ACs are the only definition of scope. |
+| **R2** | **Red before green, with evidence.** No edit to `src/main/**` without a test that was *run* and *failed on an assertion* first. A compile error is not a red test. Use `./scripts/red.sh <TestClass>`; paste the failure, then the pass. |
+| **R3** | **One behaviour per test.** Every AC maps to a named test whose name states the behaviour. |
+| **R4** | **Cite or ask.** Every non-obvious decision names its authority — a file + heading in `_arch/`, a story AC id, or an `FR`/`NFR`/`D`/`AR` id. |
+| **R5** | **Unknown means stop.** Never infer a business rule, threshold, state transition, or upstream field meaning. Record it under *Open Questions* in the story packet and halt that thread. |
+| **R6** | **No unsanctioned surface area.** No new dependency, table, column, endpoint, env var, config key, or public method beyond what the story or a cited convention calls for. |
+| **R7** | **Never assert an API or version from memory.** Read `build.gradle`, the BOM, and the actual class you are calling. |
+| **R8** | **Nothing unfinished ships.** No `TODO`, `FIXME`, stub, `UnsupportedOperationException` placeholder, commented-out code, or disabled test. |
+| **R9** | **Limits are the design speaking.** When a size, complexity, or layering limit blocks you, change the design — never raise the limit, never add a suppression. |
+| **R10** | **Contract before controller.** Contract test first; RFC 9457 `application/problem+json` errors; the generated OpenAPI spec must pass Spectral. |
+| **R11** | **Never log or store what must not leak.** No PII, personnel/payroll numbers, bank details, case identifiers, tokens, or raw bodies — at any level. Never store bank details. |
+| **R12** | **No success claim without evidence.** Run `./scripts/verify.sh`, read it, paste it. |
+| **R13** | **No git writes, ever.** No commit, push, branch, merge, checkout, `gh`. Surface the diff and stop — the human commits from VSCode. Read-only git is fine. |
+| **R14** | **No uninvited work.** No opportunistic refactoring, extra features, or reformatting untouched files. Findings go to *Open Questions*, not into the diff. |
+
+Full text, with the rationale behind each: `_arch/agent-rules/00-core.md`.
+
+## Precedence
+
+1. An explicit instruction from the human in this session.
+2. R1–R14 above.
+3. The story packet's acceptance criteria.
+4. The detail rules in `_arch/agent-rules/`.
+5. `_arch/architecture/conventions.md` and the rest of the published architecture.
+
+**A conflict between the story and the architecture is never yours to resolve** — stop and ask (R5).
+
+## The loop
+
+```
+1  READ      story packet + this file + the rule file for what you are about to touch
+2  PLAN      restate the ACs as a test list; surface unknowns BEFORE writing anything
+3  RED       one AC → one test → ./scripts/red.sh → paste the assertion failure
+4  GREEN     minimum production code to pass → run → paste the pass
+5  REFACTOR  inside the limits → re-run
+6  repeat 3–5 per behaviour, smallest first
+7  VERIFY    ./scripts/verify.sh → paste output
+8  HANDOFF   diff summary, AC→test map, Open Questions, ledger fields; status = in-review
+```
+
+## Read before you touch
+
+| About to… | Read |
+|---|---|
+| Write any test or production code | `_arch/agent-rules/10-tdd.md` |
+| Add or change a class, package, method, or dependency between them | `_arch/agent-rules/20-modularity.md` |
+| Add or change an endpoint, DTO, status code, or error | `_arch/agent-rules/30-api-contracts.md` |
+| Touch an entity, repository, or Liquibase changelog | `_arch/agent-rules/40-data-and-liquibase.md` |
+| Log anything, handle a token or secret, touch auth | `_arch/agent-rules/50-security-and-logging.md` |
+| Start a story or hand one back | `_arch/agent-rules/60-session-protocol.md` · `90-definition-of-done.md` |
+
+## Stop conditions
+
+Halt and ask — do not work around any of these:
+
+- An AC is ambiguous, or two ACs conflict.
+- The story contradicts `_arch/`, or `_arch/` contradicts itself.
+- The work needs something on R6's list that the story does not sanction.
+- An upstream field, code value, or business threshold is undocumented.
+- A limit cannot be met without a design decision you were not asked to make.
+- The gate fails for a reason you cannot attribute to your own change.
+- The work appears to need a git operation, a deployment, a secret, or access you do not have.
+
+## Hard limits in this repo
+
+Enforced by the build. `./scripts/verify.sh` runs all of it.
+
+- Method ≤ 30 lines · file ≤ 300 lines · parameters ≤ 4 · cyclomatic ≤ 8 · `if` depth ≤ 3 ·
+  instance fields ≤ 8 · public methods ≤ 10 · one public type per file.
+- `controller` → `service` → (`repository` | `client`); `domain` depends on none of them;
+  entities never cross the API boundary; `@Transactional` on service methods only.
+- Constructor injection only; injected fields `final`; no mutable static state.
+- No `LocalDate.now()` / `Instant.now()` / `new Date()` in production code — inject `java.time.Clock`.
+- JaCoCo ≥ 85% line, ≥ 75% branch and PIT mutation ≥ 70% on `service` + `domain`.
+
+## Commands
+
+```bash
+./scripts/red.sh <TestClass|TestClass.method>   # prove red (R2) — records the failing run
+./gradlew test                                  # fast loop
+./gradlew check                                 # format, structure, architecture, tests, coverage
+./scripts/verify.sh                             # THE GATE — required before handoff (R12)
+```
+
+## Stack (do not substitute)
+
+Java 25 · Spring Boot 4 · Gradle **Groovy** DSL + Wrapper · PostgreSQL 17 · **Liquibase**
+(never Flyway) · Testcontainers (never H2) · Lombok · MapStruct · Swagger Core · JUnit 5 ·
+Mockito · Pact · ArchUnit. Versions come from `build.gradle` and the Spring Boot BOM — read them,
+never recall them (R7).
