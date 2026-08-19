@@ -19,8 +19,10 @@ scan() {
   local rule="$1" desc="$2" pattern="$3"
   shift 3
   local hits
+  # *FitnessTest.java is excluded: an ArchUnit rule has to name the thing it forbids, so the
+  # enforcer would otherwise report itself. Nothing else is excluded.
   hits=$(grep -rnIE --exclude-dir=build --exclude-dir=.git --exclude-dir=node_modules \
-           --exclude-dir=generated "$pattern" "$@" 2>/dev/null || true)
+           --exclude-dir=generated --exclude='*FitnessTest.java' "$pattern" "$@" 2>/dev/null || true)
   if [ -n "$hits" ]; then
     printf '\n\033[31m%s violation — %s\033[0m\n' "$rule" "$desc"
     printf '%s\n' "$hits"
@@ -71,7 +73,7 @@ scan "S12" "mock-auth reference outside a dev/test profile" \
 
 # ---- S14: no unpinned or pre-release dependencies --------------------------------------
 scan "S14" "SNAPSHOT, release-candidate or milestone dependency version" \
-  '(SNAPSHOT|-RC[0-9]|-M[0-9]|\+["'"'"']?$)' \
+  '^[[:space:]]*(implementation|api|compileOnly|runtimeOnly|annotationProcessor|testImplementation|testCompileOnly|testRuntimeOnly|testAnnotationProcessor|apiSpec|classpath|id)[[:space:](].*(SNAPSHOT|-RC[0-9]|-M[0-9]|:\+['"'"'"]?[[:space:]]*$)' \
   build.gradle
 
 # ---- S8: TLS verification is never disabled --------------------------------------------

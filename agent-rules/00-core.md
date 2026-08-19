@@ -40,8 +40,8 @@ When two sources conflict, this is the order — and the last line is the import
 | **R10** | **Contract before controller.** For every endpoint: the contract test comes first, errors are RFC 9457 `application/problem+json`, and the generated OpenAPI spec must pass Spectral. Detail: [`30-api-contracts.md`](./30-api-contracts.md). |
 | **R11** | **Never log or store what must not leak.** No PII, personnel or payroll numbers, bank details, case-level identifiers, tokens, or raw request bodies in logs — at any level, including `DEBUG`. Never store bank details at all (NFR14). Detail: [`50-security-and-logging.md`](./50-security-and-logging.md). |
 | **R12** | **No success claim without evidence.** Run `./scripts/verify.sh`, read the output, paste it. "Should pass", "tests are green" without output, and "this completes the story" without the gate having run are all prohibited. If the gate fails, say so plainly with the failure. |
-| **R13** | **No git writes, ever.** No `commit`, `push`, `merge`, `rebase`, `checkout`, `branch`, `reset`, `stash`, `rm`, no `gh`/`hub`. Prepare the work, surface the diff, stop. The human commits from VSCode — that boundary is a deliberate review gate, not friction. Read-only git is fine. |
-| **R14** | **No uninvited work.** No opportunistic refactoring, no "while I was in there" fixes, no extra features, no reformatting untouched files. Real problems you notice go into *Open Questions* or the ledger, not into this diff. A large diff is not evidence of productivity; it is evidence the review will be shallow. |
+| **R13** | **Never write to a protected branch.** Branching, staging, committing and pushing a **feature branch** are allowed — the **pull request is the human gate**. Never commit, merge, rebase or push to `main`/`master`; never force-push; never tag; never use `gh`/`hub`; never discard work (`reset --hard`, `clean`, `rm`, `restore`, `checkout -- <path>`). If HEAD is on a protected branch, create a feature branch before committing. |
+| **R14** | **No uninvited work.** No opportunistic refactoring, no "while I was in there" fixes, no extra features, no reformatting untouched files. Real problems you notice go into *Open Questions* in the packet, not into this diff. A large diff is not evidence of productivity; it is evidence the review will be shallow. |
 
 ## The loop
 
@@ -55,7 +55,7 @@ Every story, every time:
 5  REFACTOR  inside the limits (20-modularity.md) → re-run
 6  repeat 3–5 per behaviour, smallest first
 7  VERIFY    ./scripts/verify.sh → paste output (R12)
-8  HANDOFF   diff summary, AC→test map, Open Questions, ledger signal fields
+8  HANDOFF   branch, commit, push; then diff summary, AC→test map, Open Questions
 ```
 
 Steps 3–5 are per behaviour, not per story. A story finished in one giant green step did not follow this loop.
@@ -70,7 +70,7 @@ Halt and ask. Do not work around any of these:
 - An upstream field, code value, or business threshold is undocumented.
 - A limit in `20-modularity.md` cannot be met without a design you were not asked to make.
 - The gate fails for a reason you cannot attribute to your own change.
-- The story appears to need a git operation, a deployment, a secret, or access you do not have.
+- The story appears to need a write to a protected branch, a tag, a deployment, a secret, or access you do not have.
 
 Stopping costs one message. Guessing costs a defect that outlives the story, in a codebase where duplication is deliberate and there is no shared library to fix it in one place.
 

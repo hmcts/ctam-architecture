@@ -57,32 +57,36 @@ dependency lines listed at the top of `gradle/ctam-quality.gradle` to `build.gra
 Copies are **deliberate, one-time, and recorded**: the authored source stays in the bus, and a bus
 bump re-copies. Do not diverge a local copy — fix the bus and bump.
 
-## Validation status — read before trusting these artefacts
+## Validation status
 
-Authored 2026-08-19 in the control-plane workspace, where there is no Java build to compile
-against. **R7 applies to this pack too**, so its state is recorded plainly rather than implied:
+**Verified against a real Spring Boot 4.1 / Java 25 build on 2026-08-19.** The pack was installed into a scaffolded service repo, compiled, and run.
 
 | Artefact | Status |
 |---|---|
-| `checkstyle-ctam.xml`, `checkstyle-suppressions.xml` | Well-formed XML (verified). Module names and properties from Checkstyle 14.0.0 — **not yet run** |
-| `ArchitectureFitnessTest.java`, `TestConventionsFitnessTest.java` | **Not compiled.** ArchUnit 1.5.0 API used from documentation; expect some API drift to fix on first run |
-| `ctam-quality.gradle` | **Not executed.** Plugin ids and task names per each tool's documentation |
-| `.spectral.yaml` | **Not executed**, and not YAML-validated (no parser available on the authoring machine). Expect JSONPath/function-option corrections |
-| `verify.sh`, `red.sh`, `forbidden-patterns.sh`, `require-red-test.sh` | `bash -n` syntax-checked. **Not executed** against a real repo |
-| `settings.json.template` | Valid JSON (verified) |
-| `block-git-writes.sh` | Copied verbatim from `ctam-analysis`, where it is in daily use |
+| `ArchitectureFitnessTest.java`, `TestConventionsFitnessTest.java` | **Compiled and run — all 23 rules pass.** Two fixes were needed and are in this pack: `withOptionalLayers(true)` (an absent layer was reported as a violation) and `archunit.properties` below |
+| `archunit.properties` | **Required.** ArchUnit's default fails any rule that matched no classes; on a young codebase that fails almost every rule for the wrong reason. See the file for the trade-off accepted |
+| `checkstyle-ctam.xml`, `checkstyle-suppressions.xml` | **Run — `checkstyleMain` and `checkstyleTest` pass.** Caught a real defect on first run (a source file with no trailing newline) |
+| `ctam-quality.gradle` | **Executed.** Plugins resolve; `check` wires Spotless, Checkstyle, ArchUnit, tests, the JaCoCo floor and the forbidden-pattern scan |
+| `forbidden-patterns.sh` | **Executed.** Two false positives found and fixed: it flagged the ArchUnit rules for *naming* the things they forbid, and matched a CVE note in a `build.gradle` comment |
+| `pitest` | **Starts cleanly on the JUnit 6 platform.** On a service with no `service`/`domain` classes yet it exits with "No mutations found", which is expected — not a platform problem |
+| `.spectral.yaml` | **Not yet executed** against a generated spec. Expect JSONPath / function-option corrections on first run |
+| `verify.sh`, `red.sh`, `require-red-test.sh` | `bash -n` syntax-checked; `red.sh` and the hook not yet exercised end-to-end |
+| `settings.json.template` | Valid JSON |
+| `block-git-writes.sh` | **Verified against a 46-case matrix** in both branch contexts (feature branch, and `main` on an unborn branch) |
 
-**The first scaffolding story owns making all of this actually run**, and reports every correction
-back to the bus rather than fixing it per-repo (that is the drift this model exists to prevent).
-Two known decision points for that story:
+### Two things the first build settled
 
-1. **JUnit platform.** These templates assume JUnit 5 (`archunit-junit5`), per the reconciled
-   template review in `gaps.md` G1.4. If the scaffolded `build.gradle` is on the JUnit 6 platform,
-   switch to `archunit-junit6` and update the annotation imports in both fitness classes.
-2. **PIT on a Java 25 toolchain.** pitest 1.25.8+ carries Java 25 mutator fixes, but PIT running
-   *on* a Java 25 toolchain against Spring Boot 4 is unproven here. Tracked as **G1.4c**. If it
-   cannot run, the mutation gate is the part of T16 at risk — say so rather than dropping it
-   silently.
+1. **Use `archunit-junit6`, not `archunit-junit5`.** Spring Boot 4.1 ships the **JUnit 6** platform (`jupiter 6.0.3`). `archunit-junit5` drags in `junit-platform-launcher` 1.14.x, and the version mismatch stops **both** engines initialising — so no tests run at all, including the template's own. The annotation imports are identical, so only the dependency line changes:
+
+   ```groovy
+   testImplementation 'com.tngtech.archunit:archunit-junit6:1.5.0'
+   ```
+
+   Note that `starter-template.md` §A still describes the baseline as JUnit 5; it is wrong on that point.
+
+2. **PIT works on Java 25 / Spring Boot 4.** `pitest 1.25.9` with `pitest-junit5-plugin 1.2.3` starts and runs under the JUnit 6 platform, closing the doubt recorded in **G1.4c**. The mutation gate is safe to keep.
+
+Anything corrected in a service repo is reported **back to the bus** rather than fixed per-repo — that is the drift this model exists to prevent.
 
 ## Rule → enforcer
 
@@ -102,7 +106,7 @@ Two known decision points for that story:
 | R10 contract before controller | Spectral + Pact task in `verify.sh`; ordering is review |
 | R11 never log or store what must not leak | `forbidden-patterns.sh` S1/S2 + Checkstyle S5 |
 | R12 no success claim without evidence | `verify.sh` (all-or-fail, no silent skips); pasting is review |
-| R13 no git writes | `block-git-writes.sh` hook |
+| R13 protected-branch writes | `block-git-writes.sh` hook (branch/commit/push allowed; writes to `main`, force-push, tags, `gh` denied) + server-side branch protection |
 | R14 no uninvited work | Diff review — *no automated enforcer* |
 
 ### Tests (T)
@@ -203,8 +207,8 @@ Two known decision points for that story:
 | W1–W4, W8–W11 protocol | Review — *no automated enforcer* |
 | W5 `_arch/` read-only | Review; a submodule change is visible in the diff |
 | W6 stay inside this repo | Review |
-| W7 no git writes | `block-git-writes.sh` |
-| W12, W13 handoff and status | Review of the handoff against the ledger |
+| W7 the PR is the human gate | `block-git-writes.sh` + branch protection on `main` |
+| W12, W13 handoff and status | Review of the handoff against `sprint-status.yaml` |
 | Q1–Q2, Q9–Q13 | Review of the handoff |
 | Q3–Q8 | `verify.sh` |
 

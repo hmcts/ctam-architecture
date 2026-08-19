@@ -35,7 +35,7 @@ never shared code**.
 | **R10** | **Contract before controller.** Contract test first; RFC 9457 `application/problem+json` errors; the generated OpenAPI spec must pass Spectral. |
 | **R11** | **Never log or store what must not leak.** No PII, personnel/payroll numbers, bank details, case identifiers, tokens, or raw bodies — at any level. Never store bank details. |
 | **R12** | **No success claim without evidence.** Run `./scripts/verify.sh`, read it, paste it. |
-| **R13** | **No git writes, ever.** No commit, push, branch, merge, checkout, `gh`. Surface the diff and stop — the human commits from VSCode. Read-only git is fine. |
+| **R13** | **Never write to a protected branch.** Branch, commit and push a **feature branch** freely — the **pull request is the human gate**. Never commit/merge/push to `main`, never force-push, never tag, never `gh`/`hub`, never discard work (`reset --hard`, `clean`, `rm`, `restore`). On `main`? Branch first. |
 | **R14** | **No uninvited work.** No opportunistic refactoring, extra features, or reformatting untouched files. Findings go to *Open Questions*, not into the diff. |
 
 Full text, with the rationale behind each: `_arch/agent-rules/00-core.md`.
@@ -60,7 +60,8 @@ Full text, with the rationale behind each: `_arch/agent-rules/00-core.md`.
 5  REFACTOR  inside the limits → re-run
 6  repeat 3–5 per behaviour, smallest first
 7  VERIFY    ./scripts/verify.sh → paste output
-8  HANDOFF   diff summary, AC→test map, Open Questions, ledger fields; status = in-review
+8  HANDOFF   commit on a feature branch, push it, then surface the compare URL,
+             the diff summary, the AC→test map and Open Questions; Status = review
 ```
 
 ## Read before you touch
@@ -84,7 +85,7 @@ Halt and ask — do not work around any of these:
 - An upstream field, code value, or business threshold is undocumented.
 - A limit cannot be met without a design decision you were not asked to make.
 - The gate fails for a reason you cannot attribute to your own change.
-- The work appears to need a git operation, a deployment, a secret, or access you do not have.
+- The work appears to need a write to a protected branch, a tag, a deployment, a secret, or access you do not have.
 
 ## Hard limits in this repo
 
