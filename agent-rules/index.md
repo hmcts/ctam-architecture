@@ -44,6 +44,8 @@ ctam-{service}/
 
 The rules therefore behave exactly like the rest of the bus: **one authored copy**, version-pinned, adopted by a deliberate submodule bump PR. They never change under a repo's feet mid-story.
 
+**Setting that shape up in a new repo, step by step:** [`../runbooks/github-setup.md`](../runbooks/github-setup.md) — manual GitHub web-UI repo creation, branch protection, `CODEOWNERS`, and the per-repo wiring of this pack (`_arch` pin, generated `CLAUDE.md`, `.claude/` hooks) with a verification step.
+
 ## Publication status (read this first)
 
 The architecture payload **is now published here** (`architecture.md`, `architecture/*.md`, `prd.md`) by

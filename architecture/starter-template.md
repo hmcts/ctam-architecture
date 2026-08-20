@@ -37,6 +37,8 @@ git add . && git commit -m "Scaffold CTAM Pathfinder {service-name} from HMCTS s
 git push -u origin main
 ```
 
+> **The remote must already exist.** `ctam-scaffold.sh` scaffolds **locally** and pushes to a **pre-created** repository over plain `git`; it never creates or configures one. Creating the repository (GitHub web UI, private, CNP naming), branch protection, `CODEOWNERS`, team access and the per-repo agent-enforcement wiring are manual steps in [`../runbooks/github-setup.md`](../runbooks/github-setup.md) — the precondition of every scaffold story.
+
 **CTAM Pathfinder scaffolding script:** a thin wrapper over the HMCTS starter clone-and-rename steps, with CTAM Pathfinder-specific defaults (Azure UK region, Application Insights workspace, naming conventions). Used at service-creation time only — not a runtime dependency.
 
 ## Build Tool: Gradle
