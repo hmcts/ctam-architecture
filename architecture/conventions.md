@@ -287,7 +287,7 @@ The MVP-relevant case is the **payment-processing batch** (`ctam-payment-batch`)
 
 **Git conventions:**
 
-- Branch naming: `feature/{ticket-id}-{short-description}`, `bugfix/{ticket-id}-{short-description}`, `chore/{short-description}`.
+- Branch naming: **`story/{story-id}`** for dispatched story work — e.g. `story/0.1.4` *(amended 2026-08-20, SCP 2026-08-20)*. **One branch per story, created at dispatch and carried through to the PR** — the dispatcher creates it and lands the story packet on it, and the implementing session continues on the same branch rather than opening a second one. The branch is therefore also the **claim** on that story (`scripts/dispatch-preflight.sh` checks the target remote for it), which is why there is no `owner` field anywhere. For work that is not a dispatched story: `bugfix/{ticket-id}-{short-description}`, `chore/{short-description}`, `feature/{ticket-id}-{short-description}`.
 - Commit messages: imperative present tense, ≤ 72 chars subject. Conventional Commits prefix (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`) per HMCTS conventions.
 - PR target: `main`. Trunk-based development; release branches per region/wave only if needed.
 

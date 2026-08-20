@@ -27,6 +27,12 @@ import com.tngtech.archunit.lang.SimpleConditionEvent;
  * design is wrong. Amending a rule here requires a Sprint Change Proposal in the control plane and
  * a new context-bus version — see {@code _arch/agent-rules/index.md}.
  *
+ * <p><b>Empty-rule policy:</b> {@code src/test/resources/archunit.properties} sets
+ * {@code archRule.failOnEmptyShould=false}. ArchUnit's default is to fail a rule that matched no
+ * classes, which is a good typo guard but wrong here: a story builds packages incrementally, and
+ * a service with no {@code domain/} or {@code client/} is legitimate. The cost is that a mistyped
+ * package name in this file silently checks nothing — so review changes to the package constants.
+ *
  * <p><b>Scaffold note:</b> this template has not been compiled against a live CTAM service build.
  * The first scaffolding story must compile it, run it, and fix any ArchUnit API drift (pinned:
  * archunit-junit5 1.5.0). If the repo is on the JUnit 6 platform, depend on {@code archunit-junit6}
@@ -59,6 +65,10 @@ class ArchitectureFitnessTest {
   static final ArchRule layers_flow_one_way =
       layeredArchitecture()
           .consideringOnlyDependenciesInLayers()
+          // Optional layers are REQUIRED here: a story legitimately creates packages
+          // incrementally, and some services never have a client/ or repository/ at all.
+          // Without this, every absent layer is reported as a violation on a scaffold.
+          .withOptionalLayers(true)
           .layer("Controller").definedBy(CONTROLLER)
           .layer("Service").definedBy(SERVICE)
           .layer("Persistence").definedBy(REPOSITORY)

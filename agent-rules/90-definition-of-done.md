@@ -47,13 +47,13 @@ One command runs everything. It lives in the service repo at `scripts/verify.sh`
 | **Q9** | The story packet is current | `status`, decisions with citations, *Open Questions* (**W8**) |
 | **Q10** | The diff is minimal and scoped | File list reviewed; no unrelated file, no drive-by reformat, no uninvited refactor (**R14**) |
 | **Q11** | Anything **not** done is stated explicitly | The "Not done" section of the handoff — never a silent omission (**W10**) |
-| **Q12** | Handoff carries the ledger signal fields | Per **W12** |
-| **Q13** | Status is `in-review`, not `done` | **W13** |
+| **Q12** | Handoff carries the signal fields the control plane needs | Per **W12** |
+| **Q13** | The packet's `Status:` line reads `review`, not `done`; the control plane is untouched | **W13** |
 
 ## Handoff format
 
 ```markdown
-## Story 0.1.4 — <title>            status: in-review    bus: arch-v1.0
+## Story 0.1.4 — <title>            Status: review    bus: arch-v1.0
 
 ### What changed
 <one paragraph: the behaviour that now exists, and why it is shaped that way>
