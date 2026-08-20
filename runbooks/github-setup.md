@@ -65,15 +65,21 @@ guess them. Get an answer before you reach the step that needs it.
 > permission to create repositories in the `hmcts` org through the GitHub web UI (confirmed by the
 > CTAM operator, 2026-08-20). Step 1.1 needs no escalation.
 
-> **TBD-2 — the owning GitHub team per repository.**
-> `CODEOWNERS` and team access (Step 3) must name a real GitHub team. The mapping from CTAM
-> repository → owning team does not exist yet. `repo-structure.md` records only the *role* of the
-> owner (*"CTAM Pathfinder team + service-specific reviewers"*; *"platform/infra team"* for
-> `ctam-shared-infrastructure`; *"admin-team scoped"* for `ctam-admin-ui`) — a role is not a handle.
-> **Who can answer:** the CTAM delivery lead, with the HMCTS org administrators who provision teams.
+> **TBD-2 — differentiated ownership per repository.** *Narrowed 2026-08-20.*
+> **The owning team is `@hmcts/ai-enablement`** (confirmed by the CTAM operator, 2026-08-20). Use it
+> for team access (Step 2) and as the `CODEOWNERS` owner (Step 3) of every CTAM repository.
+> What is still open is whether ownership stays **uniform across all 16 repos**.
+> [`../architecture/repo-structure.md`](../architecture/repo-structure.md) anticipates *different*
+> owners per repo — *"CTAM Pathfinder team + service-specific reviewers"* for a service,
+> *"platform/infra team"* for `ctam-shared-infrastructure`, *"admin-team scoped"* for
+> `ctam-admin-ui` — on the reasoning that the shared Azure estate and the admin UI are
+> higher-stakes surfaces than a domain service. One team owning everything is a reasonable starting
+> position while the programme is small, but it is a **narrower review gate than the architecture
+> assumed**, and it should be a deliberate choice rather than a default nobody revisits.
+> **Who can answer:** the CTAM delivery lead, when a second team exists to hand a repo to.
 
-Do not substitute a plausible-looking team handle. A wrong `CODEOWNERS` owner silently routes
-review to the wrong people, which is worse than a missing one.
+Do not substitute a plausible-looking team handle for one you have not been given. A wrong
+`CODEOWNERS` owner silently routes review to the wrong people, which is worse than a missing one.
 
 ---
 
@@ -119,8 +125,9 @@ needs it.
 > the scaffold's first push has to go via a branch and a PR instead; confirm before you start.
 
 **Step 2 — Grant the owning team access.** *Settings → Collaborators and teams → Add teams.*
-Add the owning GitHub team (**TBD-2**) with the access level that team's role requires. Scope access
-to that team: polyrepo exists so that each repo has *"its own pipeline, release cadence, CODEOWNERS,
+Add **`@hmcts/ai-enablement`** — the owning team for CTAM repositories — with the access level its
+role requires (**Write** for a delivery team; **Admin** only if that team also administers the repo's
+settings). Scope access to that team and no wider: polyrepo exists so that each repo has *"its own pipeline, release cadence, CODEOWNERS,
 branch protection, and review policy"*
 ([`../architecture/repository-strategy.md`](../architecture/repository-strategy.md) → *Repository
 Strategy: Polyrepo*). A repo readable by everyone and owned by no one has neither.
@@ -131,9 +138,23 @@ Both are files in the repository, at `.github/CODEOWNERS` and `.github/PULL_REQU
 ([`../architecture/repo-structure.md`](../architecture/repo-structure.md) — per-repo trees). If
 `ctam-scaffold.sh` already produced them, review them; if not, add them on a branch and open a PR.
 
-`CODEOWNERS` must name the owning team (**TBD-2**) as the owner of the repository root, so that
-every PR requires that team's review. Do not list individual people: an individual owner blocks
-review when they are on leave, and `repo-structure.md` records owners as *teams* throughout.
+`CODEOWNERS` must make the owning team the owner of the repository root, so that every PR requires
+that team's review:
+
+```
+# Every path in this repository is owned by the CTAM delivery team.
+*       @hmcts/ai-enablement
+```
+
+**Own the root, not a list of paths.** A `CODEOWNERS` that enumerates directories leaves anything it
+forgot unowned, and "unowned" means Step 4's *Require review from Code Owners* has nothing to
+require. Add narrower rules **below** the root rule later if a path genuinely needs a different
+reviewer — the last matching rule wins.
+
+**Never list individual people.** An individual owner blocks every PR while they are on leave, and
+[`../architecture/repo-structure.md`](../architecture/repo-structure.md) records owners as *teams*
+throughout. The team must also have write access to the repository (Step 2) or GitHub silently
+ignores it as an owner.
 
 **Step 4 — Branch protection on `main`.** *Settings → Branches → Add branch protection rule*,
 branch name pattern `main`. Enable:
@@ -294,7 +315,7 @@ push; only `main` and the PR are the human's.
 Answer these before the step that depends on them; they are not optional detail.
 
 - **TBD-1** — HMCTS org-level settings and repository-creation rights → HMCTS platform / GitHub org administrators.
-- **TBD-2** — the owning GitHub team per repository, for `CODEOWNERS` and team access → CTAM delivery lead + HMCTS org administrators.
+- **TBD-2** — *narrowed.* The owning team is `@hmcts/ai-enablement`; what is open is whether ownership stays uniform across all 16 repos, where `repo-structure.md` anticipated a separate platform/infra and admin owner → CTAM delivery lead.
 
 ## Publication
 
