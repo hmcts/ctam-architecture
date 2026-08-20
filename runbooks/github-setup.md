@@ -54,11 +54,16 @@ instead, per this runbook. Authority: the `block-git-writes.sh` deny reason quot
 Two facts are **not recorded anywhere in the bus or the control plane**, and this runbook will not
 guess them. Get an answer before you reach the step that needs it.
 
-> **TBD-1 — HMCTS org-level settings and repository-creation rights.**
-> Who may create a repository in the `hmcts` org, which org policies apply to a new private repo
-> (SSO enforcement, required org-level rulesets, default permissions, allowed merge methods), and
-> whether any of them override the branch-protection settings in Part B.
+> **TBD-1 — HMCTS org-level policy on a new private repo.**
+> Which org-level policies apply (SSO enforcement, required org rulesets, default permissions,
+> allowed merge methods), whether any of them override the branch-protection settings in Part B,
+> and in particular **whether `main` is protected from the moment the repository exists** — if it
+> is, the sequencing in Part B changes and the scaffold's first push must go via a branch and a PR.
 > **Who can answer:** the HMCTS platform / GitHub org administrators.
+>
+> *Not unknown:* **repository-creation rights are confirmed.** The engineer running this runbook has
+> permission to create repositories in the `hmcts` org through the GitHub web UI (confirmed by the
+> CTAM operator, 2026-08-20). Step 1.1 needs no escalation.
 
 > **TBD-2 — the owning GitHub team per repository.**
 > `CODEOWNERS` and team access (Step 3) must name a real GitHub team. The mapping from CTAM
@@ -75,7 +80,8 @@ review to the wrong people, which is worse than a missing one.
 ## Part A — Create the repository (web UI)
 
 **Step 1.1** Sign in to GitHub and go to the **`hmcts`** organisation → **Repositories** → **New
-repository**. (If you do not have the button, that is **TBD-1**.)
+repository**. The engineer running this runbook holds the permission to do so (see *Before you
+start*); if the button is missing, the org grant has changed and that is a platform-team question.
 
 **Step 1.2 — Name it per the CNP convention.**
 
