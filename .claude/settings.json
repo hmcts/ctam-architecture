@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "_comment": [
+    "Bus-repo hook registration for ctam-architecture. NOT a copy of",
+    "agent-rules/enforcement/claude/settings.json.template, and deliberately so:",
+    "",
+    "  - block-git-writes.sh IS registered. R13/W7 bind conduct in every repo, and this",
+    "    one authors the rule. The file is a byte-identical copy of the bus source at",
+    "    agent-rules/enforcement/claude/hooks/block-git-writes.sh — the bus cannot",
+    "    submodule itself, so it is copied rather than reached through _arch/.",
+    "    When the bus source changes, re-copy it; the two must not drift.",
+    "",
+    "  - require-red-test.sh is NOT registered. It enforces R2/T1, which govern edits to",
+    "    src/main/**. This repository has no src/ and ships no code — Markdown and shell",
+    "    only — so the hook would have nothing to guard and would obstruct every doc edit."
+  ],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-git-writes.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
