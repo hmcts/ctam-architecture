@@ -60,9 +60,9 @@ No edits to the control plane (`ctam-analysis`), no edits to another service rep
 
 You own the branch. A human owns `main`.
 
-1. **Branch before you work.** `git switch -c feature/{ticket}-{short-description}` (naming per `conventions.md` → *Git conventions*). If HEAD is already on a protected branch, branch first — the hook will refuse the commit otherwise, and it is right to.
+1. **You are already on the story's branch — do not cut another.** Dispatch created `story/<id>` in this repo, committed the packet on it and pushed it; that branch is the claim on this story. Confirm you are on it (`git rev-parse --abbrev-ref HEAD`) and continue there. **One branch per story, from dispatch to PR** (`conventions.md` → *Git conventions*). If HEAD is on a protected branch instead, stop and ask — something went wrong at dispatch; the hook will refuse the commit anyway, and it is right to.
 2. **Commit as you go**, Conventional Commits, imperative, ≤ 72-char subject. Prefer several honest commits over one that hides the sequence: red-green cycles are easier to review when they are visible.
-3. **Push the branch** — `git push -u origin feature/...`.
+3. **Push the branch** — `git push` (the upstream is already set; dispatch pushed it).
 4. **Stop there and hand back.** Surface the compare URL, a one-paragraph summary of what changed and why, the file list grouped by layer, and the evidence (**R2**, **R12**).
 
 **Never:** open, approve or merge the pull request · push to `main`/`master` · force-push · tag · use `gh`/`hub` · discard uncommitted work. Those *are* the gate, and an agent that operates its own gate does not have one.

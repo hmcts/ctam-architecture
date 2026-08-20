@@ -117,8 +117,8 @@ Each story travels the same four steps. The "transport" is a **lossless generate
      compile story + Gherkin ACs + needed arch context   │
      + pinned bus version  →  story packet                │
         │                                                 ▼
-        │                                    2. LAND packet as docs/stories/<id>.md
-        │                                       (Claude writes files; human commits via VSCode)
+        │                                    2. LAND on branch story/<id>: packet
+        │                                       committed + pushed = the claim
         │                                                 │
         │                                                 ▼
         │                                    3. EXECUTE dev-story session in-repo
@@ -134,7 +134,7 @@ Mapped to the installed BMAD skills:
 | Step | Skill(s) | Runs in |
 |---|---|---|
 | 1 · Dispatch | `bmad-create-story` / `compile-epic-context` — "all the context the agent will need to implement it later" | `ctam-analysis` |
-| 2 · Land | file write into target repo working tree (human commits) | target repo |
+| 2 · Land | packet committed on `story/<id>` in the target repo and pushed — the branch is the claim | target repo |
 | 3 · Execute | `bmad-dev-story` (then `bmad-code-review`, `bmad-checkpoint-preview`) | target repo |
 | 4 · Signal | `bmad-sprint-status` updating `sprint-status.yaml` | `ctam-analysis` |
 | Sprint setup | `bmad-sprint-planning` parses the epics → `sprint-status.yaml`; `scripts/dispatch-preflight.sh` picks the next buildable story | `ctam-analysis` |

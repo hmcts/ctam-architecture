@@ -35,7 +35,7 @@ never shared code**.
 | **R10** | **Contract before controller.** Contract test first; RFC 9457 `application/problem+json` errors; the generated OpenAPI spec must pass Spectral. |
 | **R11** | **Never log or store what must not leak.** No PII, personnel/payroll numbers, bank details, case identifiers, tokens, or raw bodies — at any level. Never store bank details. |
 | **R12** | **No success claim without evidence.** Run `./scripts/verify.sh`, read it, paste it. |
-| **R13** | **Never write to a protected branch.** Branch, commit and push a **feature branch** freely — the **pull request is the human gate**. Never commit/merge/push to `main`, never force-push, never tag, never `gh`/`hub`, never discard work (`reset --hard`, `clean`, `rm`, `restore`). On `main`? Branch first. |
+| **R13** | **Never write to a protected branch.** Commit and push freely on this story's `story/<id>` branch — the **pull request is the human gate**. Never commit/merge/push to `main`, never force-push, never tag, never `gh`/`hub`, never discard work (`reset --hard`, `clean`, `rm`, `restore`). On `main`? Branch first. |
 | **R14** | **No uninvited work.** No opportunistic refactoring, extra features, or reformatting untouched files. Findings go to *Open Questions*, not into the diff. |
 
 Full text, with the rationale behind each: `_arch/agent-rules/00-core.md`.
@@ -60,8 +60,9 @@ Full text, with the rationale behind each: `_arch/agent-rules/00-core.md`.
 5  REFACTOR  inside the limits → re-run
 6  repeat 3–5 per behaviour, smallest first
 7  VERIFY    ./scripts/verify.sh → paste output
-8  HANDOFF   commit on a feature branch, push it, then surface the compare URL,
-             the diff summary, the AC→test map and Open Questions; Status = review
+8  HANDOFF   commit on story/<id> (the branch dispatch already created), push,
+             then surface the compare URL, the diff summary, the AC→test map
+             and Open Questions; Status = review
 ```
 
 ## Read before you touch

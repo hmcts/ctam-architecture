@@ -161,12 +161,13 @@ current=$(git -C "$project_dir" symbolic-ref --quiet --short HEAD 2>/dev/null \
 if [ -n "$current" ] && printf '%s' "$current" | grep -qE "^(${PROTECTED})$"; then
   if has "${git_cmd}(commit|merge|rebase|cherry-pick|revert|am)([[:space:]]|$)"; then
     deny "HEAD is on '${current}', a protected branch, so this would write to it directly and \
-bypass the pull-request gate. Create a feature branch first: 'git switch -c feature/<ticket>-<desc>' \
-(branch naming per conventions.md), then commit there."
+bypass the pull-request gate. For a dispatched story you should already be on its 'story/<id>' branch — if \
+you are not, dispatch went wrong, so stop and ask rather than cutting a new one. For work that is not a \
+dispatched story, branch first ('bugfix/<ticket>-<desc>' or 'chore/<desc>' per conventions.md)."
   fi
   if has "${git_cmd}push([[:space:]]|$)"; then
-    deny "HEAD is on '${current}', a protected branch, so a bare push targets it. Move the work to \
-a feature branch and push that: 'git switch -c feature/<ticket>-<desc>'."
+    deny "HEAD is on '${current}', a protected branch, so a bare push targets it. Move the work onto the \
+story's branch ('story/<id>', created at dispatch), or for non-story work a 'bugfix/' or 'chore/' branch."
   fi
   if has "${git_cmd}pull([[:space:]]|$)"; then
     deny "Pulling onto '${current}' updates a protected branch and can create a merge commit on it. \
